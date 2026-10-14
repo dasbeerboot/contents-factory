@@ -193,7 +193,7 @@ factory ledger summary [--days 30]
 1. `uv run pytest` 통과 (스키마·게이트·큐·스케줄 tick 단위 테스트).
 2. `factory init` → `/setup` → `/writing-factory` 로 `_example` 프로필 Threads 글 1건 생성, 큐 적재, `factory publish threads --dry-run` 페이로드 출력.
 3. 5개 publisher 각각 `--dry-run` 통과 + 실발행 1건씩 (테스트 계정).
-4. **Meta 앱 공개 사용 검증**: 테스터 등록 안 된 계정으로 OAuth → Threads 1건 발행. 실패 시 PLAN §8-2 수정.
+4. **Meta 앱 테스터 경로 검증**: 대시보드 실측(2026-10-14) 결과 `threads_content_publish`는 테스터 전용. /setup 스킬의 테스터 등록 안내(앱 역할 추가 → Threads 앱에서 초대 수락 → OAuth, 리다이렉트 URL 일치)를 따라 새 테스터 계정 1개로 OAuth → Threads 1건 발행. 비테스터 발행은 범위 밖.
 5. `factory schedule install` 후 launchd 등록 확인, tick 1회 수동 실행, 상태파일 손상 없음.
 6. ui_lang=en 으로 전 인터뷰 1회 완주.
 
@@ -203,4 +203,4 @@ factory ledger summary [--days 30]
 |---|---|
 | opus 4.8 | 레포 뼈대, spec 모델, CLI 골격, queue/scheduler/tick, publishers 5종 이식, 캐싱 적용 text generator, 스킬 1개(writing-factory) 원형 |
 | codex | i18n ko/en 사전 전량, formats yaml 카탈로그 15개, 나머지 SKILL.md 5개(원형 승인 후), gates 이식·테스트, rules md 4종 추출 정리 |
-| 주원 | 테스트용 계정 제공, Meta 앱 공개 검증(§8-4), 네이버 aside 로그인 |
+| 주원 | 테스트용 계정 제공, 사용자 계정을 Threads 테스터로 추가(§8-4, 앱 관리자 권한), 네이버 aside 로그인 |

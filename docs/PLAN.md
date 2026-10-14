@@ -105,7 +105,7 @@ contents-factory/
 | # | 항목 | 결정 |
 |---|---|---|
 | 1 | 공개 범위 | 프라이빗 레포, 지인 초대 |
-| 2 | Meta 앱 | saju-threads 앱 공용 (주원: 심사 완료). ⚠ P0 검증 항목: 테스터 아닌 계정으로 OAuth→Threads 1건 발행 실측. 9/22 기록(서브계정 테스터 필수)과 충돌하므로 실측 전 "됨"으로 쓰지 않음 |
+| 2 | Meta 앱 | saju-threads 앱 "Korean Saju"(ID 1273477101432268, 라이브, Project Onezero 비즈니스) 공용. **대시보드 실측 2026-10-14 (aside)**: 고급 액세스(게시 준비됨)는 `threads_basic`·`threads_keyword_search` 2개뿐. **`threads_content_publish`·`threads_manage_replies`·`threads_read_replies`·`threads_manage_insights`·`threads_delete`·`threads_profile_discovery`·`threads_share_to_instagram`은 "테스트 준비 완료" = 테스터 역할 계정만 사용 가능**. 즉 외부 사용자 발행은 심사 미완. 결정: 프라이빗 지인 공유이므로 **Threads 테스터 등록 방식 채택 (한도 500명, 현재 3명: saju.unni.kr·sujinlee.kr·readbyjun)**. /setup 스킬이 "앱 역할 → 테스터 추가 → Threads 앱 설정 > 웹사이트 권한에서 초대 수락 → OAuth" 절차를 안내. 공개 전환하려면 content_publish 등 앱 검수 별도 (P3) |
 | 3 | 실행 환경 | Claude Code 스킬팩 (클론 후 슬래시 명령) |
 | 4 | 스케줄러 | 사용자 로컬 launchd(mac)·cron(linux) |
 | 5 | 네이버 발행 | aside 브라우저 방식 그대로 이식 (사용자도 aside 설치 전제) |
