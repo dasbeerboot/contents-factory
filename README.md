@@ -199,7 +199,7 @@ factory/
   publishers/naver/*.mjs      pilot에서 벤더링한 aside 에디터 조작
   review/terminal.py
 profiles/_example/            영문 예시 페르소나 (사주 아님)
-.claude/skills/writing-factory/SKILL.md
+.claude/skills/{setup,profile,writing-factory,image-factory,video-factory,publish}/SKILL.md
 tests/
 ```
 
