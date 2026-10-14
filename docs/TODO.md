@@ -51,6 +51,10 @@
       원본 파이프라인은 refresh_token 으로 조용히 갱신한다 — 갱신 경로 이식 필요
 - [ ] ❌ `factory auth instagram` 교환 구현 (현재 동의 URL + 수동 절차만)
 - [ ] ❌ 프로필 옵션 `auto_approve` (armed 게이트 유지)
+- [ ] ❌ `factory auth threads` 실사용 검증(지인 계정 1건) + `factory auth instagram` 구현
+- [ ] ❌ TikTok MCP 토큰 자동 refresh (현재 정적 토큰 수 시간 만료)
+- [ ] ❌ brief id 충돌 수정 (같은 날 같은 포맷이면 id 동일 → 덮어씀, 10/14 실측)
+- [ ] ❌ 수진 프로필용 비케이스 포맷(2인칭 관찰글) — 케이스썰은 실사연만 규칙
 - [ ] ❌ 네이버 이미지 업로드 (`IMAGE_UPLOAD_UNSUPPORTED` 해제)
 - [ ] ❌ gen image 실호출 1건 + 크레딧 원장 기록 검증
 - [ ] ❌ 텔레그램 리뷰 채널 (`factory/review/telegram.py`)
