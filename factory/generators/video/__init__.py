@@ -27,6 +27,7 @@ from typing import Any, Callable
 from ... import ledger, media
 from ...credentials import load_profile_env
 from ...errors import FactoryError
+from ...gates import caption_safe_zone
 from ...spec.brief import Brief, Output
 from ...spec.format import FormatSpec
 from ...spec.profile import Profile
@@ -115,6 +116,29 @@ def _frame(limits: dict[str, Any]) -> tuple[int, int]:
 
 def _hold(limits: dict[str, Any]) -> float:
     return float(limits.get("endcard_min_s") or assemble.HOLD_S)
+
+
+def _endcard_text(context: "Context") -> str:
+    """The card string, from the same slots the prompt used to interpolate.
+
+    Brief answer first, then `brand.md`. Both spellings resolve, so a profile
+    can write `- End card: ...` and a brief can answer `video.th.endcard`.
+    """
+    resolved = context.values()
+    for key in ("endcard", "end_card"):
+        text = str(resolved.get(key) or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _endcard_zone(limits: dict[str, Any], frame: tuple[int, int]) -> dict[str, int]:
+    zone = caption_safe_zone.zone_from_limits(limits)
+    if not zone.native and frame != (caption_safe_zone.FRAME_WIDTH,
+                                     caption_safe_zone.FRAME_HEIGHT):
+        zone = zone.scaled(frame)
+    return {"x_min": zone.x_min, "x_max": zone.x_max, "y_min": zone.y_min,
+            "y_max": zone.y_max, "max_text_width": zone.max_text_width}
 
 
 def _stage_script(context: Context) -> StageResult:
@@ -395,17 +419,41 @@ def _stage_assemble(context: Context) -> StageResult:
             workspace.caption_frames().glob("*.png")):
         body = assemble.burn_captions(body, workspace.caption_frames(),
                                       build / "body_cap.mp4")
+    # The end card is composited here, not asked of the clip model: a diffusion
+    # model mis-spells the one string that is the brand (2026-10-14: "SAJU UNNI"
+    # rendered as "SAJU UNUI", over the mouth).
+    card_text = _endcard_text(context)
+    card: dict[str, Any] = {}
+    overlay: Path | None = None
+    zone = _endcard_zone(limits, frame)
+    if card_text:
+        card = assemble.render_endcard(
+            card_text, build / "endcard.png", frame=frame, zone=zone,
+            max_text_width=int(zone["max_text_width"]))
+        overlay = Path(card["path"])
+        safe = caption_safe_zone.check(card["boxes"], limits=limits,
+                                       frame=frame)
+        card["safe_zone"] = safe.as_dict()
     hold = assemble.hold_last_frame(body, build / "hold.mp4",
                                     seconds=_hold(limits), width=frame[0],
-                                    height=frame[1])
+                                    height=frame[1], overlay=overlay)
     assemble.concat([body, hold], workspace.final(), width=frame[0],
                     height=frame[1])
     report = assemble.verify(workspace.final(), duration_band=context.duration_band,
                              width=frame[0], height=frame[1])
-    status = "ok" if report.ok else "gate_fail"
-    return StageResult(stage="assemble", status=status,
-                       detail={"path": str(workspace.final()),
-                               "verify": report.as_dict()})
+    violations = list(report.violations)
+    if card:
+        violations.extend(card["safe_zone"]["violations"])
+    status = "ok" if not violations else "gate_fail"
+    detail: dict[str, Any] = {"path": str(workspace.final()),
+                              "verify": report.as_dict()}
+    if card:
+        detail["endcard"] = {key: card[key] for key in
+                             ("path", "text", "size", "rows", "boxes",
+                              "safe_zone")}
+    elif card_text == "":
+        detail["endcard"] = {"status": "no_text"}
+    return StageResult(stage="assemble", status=status, detail=detail)
 
 
 HANDLERS: dict[str, Callable[[Context], StageResult]] = {

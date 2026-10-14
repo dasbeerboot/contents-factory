@@ -11,6 +11,12 @@ Three things happen here that are not just a container change:
   Fill then crop, never letterbox.
 * **End card hold.** The last frame is frozen for the declared hold so the end
   card is readable. Below roughly 2.5 seconds nobody finishes reading it.
+* **End card text.** Drawn here, as an overlay, the same way captions are. The
+  clip model used to be asked for it and could not be trusted with it: a
+  2026-10-14 render of "SAJU UNNI" came back as "SAJU UNUI", centred over the
+  mouth. A diffusion model spells by accident. The prompt now asks only for a
+  clean held closing frame, and the brand's own string is composited on top, in
+  the safe zone, at a size this code chose.
 * **Caption burn.** The overlay frames from the captions stage are composited,
   not re-laid out. Layout decisions belong to one stage.
 """
@@ -22,6 +28,7 @@ from typing import Any
 
 from ... import media
 from ...errors import FactoryError
+from . import captions
 
 WIDTH = 1080
 HEIGHT = 1920
@@ -33,6 +40,17 @@ CRF = "18"
 PRESET = "medium"
 HOLD_S = 2.5
 DURATION_TOLERANCE_S = 0.6
+
+# End card type. Bigger than a caption and centred rather than sitting in the
+# caption band, because nothing else is on screen and nothing is being spoken.
+ENDCARD_LADDER = (104, 92, 80, 72, 64)
+ENDCARD_CENTER_FRACTION = 0.5
+ENDCARD_MAX_ROWS = 3
+# Heavier than the caption scrim: this one covers the whole frame, so the card
+# reads over a face, a bright sky or a wall without depending on the take.
+ENDCARD_SCRIM_ALPHA = 140
+ENDCARD_SHADOW_BLUR = 14
+ENDCARD_SHADOW_OFFSET = 7
 
 
 @dataclass
@@ -57,6 +75,69 @@ class VerifyReport:
                 "audio_codec": self.audio_codec, "faststart": self.faststart}
 
 
+def endcard_top(rows: int, size: int, *, frame: tuple[int, int],
+                zone: dict[str, int],
+                center_fraction: float = ENDCARD_CENTER_FRACTION) -> int:
+    """Top of the text block, clamped into the safe zone like captions are."""
+    block = rows * int(round(size * captions.LINE_RATIO))
+    top = int(frame[1] * center_fraction) - block // 2
+    top = min(top, int(zone["y_max"]) - block)
+    return max(top, int(zone["y_min"]))
+
+
+def render_endcard(text: str, destination: Path, *,
+                   frame: tuple[int, int] = (WIDTH, HEIGHT),
+                   zone: dict[str, int] | None = None,
+                   max_text_width: int = captions.MAX_TEXT_WIDTH,
+                   font_override: str = "") -> dict[str, Any]:
+    """One RGBA frame: full-frame scrim, drop shadow, the card centred.
+
+    Returns the path plus the drawn box, so `caption_safe_zone` measures the
+    geometry that was actually rendered rather than a number typed by hand.
+    """
+    card_text = " ".join(str(text or "").split())
+    if not card_text:
+        raise FactoryError("ENDCARD_TEXT_MISSING")
+    image_module, draw_module, filter_module, _font = captions._pillow()
+    safe = dict(zone or captions.SAFE)
+    metrics = captions.Metrics(captions.Typeface.discover(font_override))
+    size, rows, fits = captions.fit(card_text, metrics, max_width=max_text_width,
+                                    ladder=ENDCARD_LADDER,
+                                    max_rows=ENDCARD_MAX_ROWS)
+    if not fits:
+        # Shrinking further would make the card unreadable on a phone, and
+        # letting it run past the zone is the defect this function exists for.
+        raise FactoryError("ENDCARD_TOO_LONG", str(len(card_text)))
+    width, height = frame
+    line_height = int(round(size * captions.LINE_RATIO))
+    top = endcard_top(len(rows), size, frame=frame, zone=safe)
+
+    layer = image_module.new("RGBA", frame, (0, 0, 0, 0))
+    shadow = image_module.new("RGBA", frame, (0, 0, 0, 0))
+    scrim = image_module.new("RGBA", frame, (0, 0, 0, ENDCARD_SCRIM_ALPHA))
+    pen, pen_shadow = draw_module.Draw(layer), draw_module.Draw(shadow)
+    font = metrics.font(size)
+    widest = 0
+    for index, row in enumerate(rows):
+        row_width = metrics.width(row, size)
+        widest = max(widest, row_width)
+        x = width // 2 - row_width // 2
+        y = top + index * line_height
+        pen_shadow.text((x, y + ENDCARD_SHADOW_OFFSET), row, font=font,
+                        fill=(0, 0, 0, 255))
+        pen.text((x, y), row, font=font, fill=(255, 255, 255, 255))
+    shadow = shadow.filter(filter_module.GaussianBlur(ENDCARD_SHADOW_BLUR))
+    composed = image_module.alpha_composite(
+        image_module.alpha_composite(scrim, shadow), layer)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    composed.save(destination)
+    block = len(rows) * line_height
+    return {"path": str(destination), "text": card_text, "size": size,
+            "rows": list(rows),
+            "boxes": [{"label": "endcard", "x": width // 2 - widest // 2,
+                       "y": top, "width": widest, "height": block}]}
+
+
 def _fill_crop(width: int = WIDTH, height: int = HEIGHT) -> str:
     return (f"scale={width}:{height}:force_original_aspect_ratio=increase,"
             f"crop={width}:{height},setsar=1")
@@ -77,14 +158,27 @@ def normalise(source: Path, destination: Path, *, width: int = WIDTH,
 
 def hold_last_frame(source: Path, destination: Path, *, seconds: float = HOLD_S,
                     width: int = WIDTH, height: int = HEIGHT,
-                    fps: int = FPS) -> Path:
-    """Freeze the final frame for the end card, as silent video."""
+                    fps: int = FPS, overlay: Path | None = None) -> Path:
+    """Freeze the final frame for the end card, as silent video.
+
+    `overlay` is the rendered end card. Compositing it into this same encode
+    keeps the card to one generation: the still is looped, the card sits on top
+    of every frame of it, and nothing re-encodes the body.
+    """
     frame = destination.parent / "lastframe.png"
     media.extract_frame(source, frame, at=-0.05)
-    media.ffmpeg(["-loop", "1", "-i", str(frame), "-t", f"{seconds:.3f}",
-                  "-vf", f"{_fill_crop(width, height)},fps={fps}",
-                  "-c:v", VIDEO_CODEC, "-preset", PRESET, "-crf", CRF,
-                  "-pix_fmt", "yuv420p", str(destination)])
+    args = ["-loop", "1", "-i", str(frame), "-t", f"{seconds:.3f}"]
+    if overlay is not None:
+        args += ["-loop", "1", "-i", str(overlay), "-t", f"{seconds:.3f}",
+                 "-filter_complex",
+                 f"[0:v]{_fill_crop(width, height)},fps={fps}[bg];"
+                 f"[bg][1:v]overlay=0:0:format=auto[v]",
+                 "-map", "[v]"]
+    else:
+        args += ["-vf", f"{_fill_crop(width, height)},fps={fps}"]
+    args += ["-c:v", VIDEO_CODEC, "-preset", PRESET, "-crf", CRF,
+             "-pix_fmt", "yuv420p", str(destination)]
+    media.ffmpeg(args)
     return destination
 
 

@@ -121,3 +121,86 @@ def test_a_declared_band_on_a_non_vertical_frame_is_not_rescaled() -> None:
                                        "label": "headline"}], limits=card)
     assert report.ok, report.violations
     assert report.zone["y_max"] == 1254
+
+
+# ---------------------------------------------- end card is drawn here, not generated
+
+ENDCARD_LIMITS = {"width_px": 1080, "height_px": 1920,
+                  "safe_zone_px": {"x_min": 200, "x_max": 880, "y_min": 290,
+                                   "y_max": 1430}}
+
+
+def _pillow_or_skip() -> None:
+    pytest.importorskip("PIL")
+
+
+def test_the_end_card_lands_inside_the_safe_zone(tmp_path: Path) -> None:
+    """The clip model used to draw this string and mis-spelled it. Drawing it here
+    means the spelling is the profile's and the geometry is measurable."""
+    _pillow_or_skip()
+    from factory.generators.video import assemble
+
+    card = assemble.render_endcard("SAJU UNNI", tmp_path / "endcard.png")
+    assert Path(card["path"]).is_file()
+    assert card["text"] == "SAJU UNNI"
+    assert card["rows"] == ["SAJU UNNI"]
+    report = caption_safe_zone.check(card["boxes"], limits=ENDCARD_LIMITS)
+    assert report.ok, report.violations
+
+
+def test_a_long_end_card_wraps_and_still_fits(tmp_path: Path) -> None:
+    _pillow_or_skip()
+    from factory.generators.video import assemble
+
+    card = assemble.render_endcard("Two charts, side by side, free on the profile",
+                                   tmp_path / "endcard.png")
+    assert len(card["rows"]) > 1
+    assert card["size"] < assemble.ENDCARD_LADDER[0]
+    assert caption_safe_zone.check(card["boxes"], limits=ENDCARD_LIMITS).ok
+
+
+def test_an_end_card_that_cannot_fit_is_refused_not_overflowed(
+        tmp_path: Path) -> None:
+    """Running past the zone is the defect this function exists to prevent, and
+    shrinking further would make it unreadable on a phone. So it raises."""
+    _pillow_or_skip()
+    from factory.generators.video import assemble
+
+    with pytest.raises(FactoryError) as error:
+        assemble.render_endcard(" ".join(["overflow"] * 40), tmp_path / "e.png")
+    assert error.value.code == "ENDCARD_TOO_LONG"
+
+
+def test_an_empty_end_card_is_refused(tmp_path: Path) -> None:
+    _pillow_or_skip()
+    from factory.generators.video import assemble
+
+    with pytest.raises(FactoryError) as error:
+        assemble.render_endcard("   ", tmp_path / "e.png")
+    assert error.value.code == "ENDCARD_TEXT_MISSING"
+
+
+def test_the_end_card_block_is_clamped_into_the_zone() -> None:
+    from factory.generators.video import assemble
+
+    zone = {"x_min": 200, "x_max": 880, "y_min": 290, "y_max": 1430}
+    high = assemble.endcard_top(3, 104, frame=(1080, 1920), zone=zone,
+                                center_fraction=0.95)
+    assert high + 3 * int(round(104 * 1.30)) <= zone["y_max"]
+    low = assemble.endcard_top(1, 104, frame=(1080, 1920), zone=zone,
+                               center_fraction=0.0)
+    assert low >= zone["y_min"]
+
+
+def test_no_clip_template_still_asks_the_model_for_the_card() -> None:
+    """The prompt is the other half of the fix: a model asked for text draws it.
+
+    Read off disk rather than through load_format, because the suite points
+    FACTORY_FORMATS_DIR at fixtures and these are the shipped formats.
+    """
+    formats = Path(__file__).resolve().parent.parent / "factory" / "formats" / "video"
+    for name in ("talking_head", "pov"):
+        body = (formats / f"{name}.yaml").read_text(encoding="utf-8")
+        assert "End card only:" not in body, name
+        assert "{{endcard}}" not in body, name
+        assert "Render no text of any kind" in body, name

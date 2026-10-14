@@ -54,9 +54,9 @@ prompt_template: |
   [Stage 3 | {{host_1_end_s}}-{{viewer_2_end_s}}s] Viewer says: {{viewer_line_2}}. The host listens silently while walking.
   [Stage 4 | {{viewer_2_end_s}}-{{host_2_end_s}}s] Host answers: {{host_line_2}}
   [Stage 5 | {{host_2_end_s}}-{{host_3_end_s}}s] Host lands the final point: {{host_line_3}}
-  [Stage 6 | {{host_3_end_s}}-{{duration_s}}s] End card only: {{endcard}}
+  [Stage 6 | {{host_3_end_s}}-{{duration_s}}s] Closing hold. The host has finished speaking and holds still, mouth closed, looking at the lens. Keep the background clean and empty. Render no text of any kind in this stage.
   [Maintain Consistency] One host, one face, same outfit, same friend-distance framing from the front, same background, always walking toward the camera.
-  Negative: altered face, close-up, profile, side view, filmed from behind, back of head, walking away, phone in frame, selfie arm, third hand, duplicate limbs, locked elbow, fixed stare, looking down, subtitles before the end card, readable background text, music, cuts, beauty filter, frozen background, unnatural backward pedestrians.
+  Negative: altered face, close-up, profile, side view, filmed from behind, back of head, walking away, phone in frame, selfie arm, third hand, duplicate limbs, locked elbow, fixed stare, looking down, subtitles, on-screen text, captions, titles, logos, watermarks, readable background text, music, cuts, beauty filter, frozen background, unnatural backward pedestrians.
 gates: [caption_safe_zone, limb_motion, bg_motion, stt_wpm, identity, viewer_voice_sync, start_freeze]
 limits:
   width_px: 1080

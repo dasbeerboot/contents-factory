@@ -39,12 +39,10 @@ still_prompt_template: |
   Background: the street behind her is quiet and deserted, with a pole, railing or kerb close to the camera on one side.
   Lighting: available daylight, consistent with the location.
   Negative: text, watermark, extra limbs, deformed hands, blurry, beauty filter, airbrushed skin, 3D render, illustration.
-# TODO (end card): Stage 5 asks the clip model to draw the card, and it mis-spells
-# it. A 2026-10-14 render of "SAJU UNNI" came back as "SAJU UNUI", centred over the
-# face instead of in the caption safe zone. The card belongs in the assemble stage
-# as an overlay, the way captions already are, leaving this stage to ask only for a
-# held closing frame. The slot stays until that lands so the golden prompt and the
-# takes already rendered against it stay comparable.
+# End card: drawn in the assemble stage as an overlay, not here. Asking the clip
+# model for it produced "SAJU UNUI" over the mouth (2026-10-14) — a diffusion model
+# spells by accident. Stage 5 now asks only for a clean held closing frame, and the
+# brand string is composited on top inside the safe zone.
 prompt_template: |
   The START IMAGE is the exact first frame and face reference for {{host_identity}}.
   Keep the face, outfit, opening composition, camera height, subject placement, background, and lighting from the start image.
@@ -62,9 +60,9 @@ prompt_template: |
   [Stage 2 | 0.3-3s] The host says: {{hook_line}}
   [Stage 3 | 3-{{midpoint_s}}s] Continue with the body lines: {{body_lines}}
   [Stage 4 | {{midpoint_s}}-{{end_s}}s] Land the final spoken point and close the mouth after the last word.
-  [Stage 5 | {{end_s}}-{{duration_s}}s] End card only: {{endcard}}
+  [Stage 5 | {{end_s}}-{{duration_s}}s] Closing hold. The host has finished speaking and holds still, mouth closed, looking at the lens. Keep the background clean and empty. Render no text of any kind in this stage.
   [Maintain Consistency] One host, one face, same outfit, same selfie framing, same real background, walking forward the whole time.
-  Negative: smaller eyes, altered face, face drift, phone in frame, visible filming arm, third hand, duplicate limbs, looking down, fixed stare, subtitles, on-screen text before the end card, readable background text, music, cuts, beauty filter, frozen background, background morphing, object warping.
+  Negative: smaller eyes, altered face, face drift, phone in frame, visible filming arm, third hand, duplicate limbs, looking down, fixed stare, subtitles, on-screen text, captions, titles, logos, watermarks, readable background text, music, cuts, beauty filter, frozen background, background morphing, object warping.
 gates: [caption_safe_zone, limb_motion, bg_motion, stt_wpm, identity, readable_text, start_freeze]
 limits:
   width_px: 1080
