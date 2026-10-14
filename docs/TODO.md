@@ -3,6 +3,8 @@
 > 갱신 2026-10-14. 근거 표기: ✅(파일) / 🟡(부분) / ❌(미구현)
 
 ## 액션플랜 (주원 손)
+- [ ] ❌ Windows PC에서 `uv run factory init --os windows` → `factory doctor` → `schedule install` 실기 검증 (10/15 코드만, 실기 0회)
+- [ ] ❌ 네이버 playwright 백엔드 첫 실발행 (테스트 블로그, 입회 필수)
 - [ ] ❌ saju-website: `src/app/api/threads/exchange/route.ts`(미커밋, yearmap-v1 작업트리) + /radar 글쓰기 박스(`/tmp/meta-review/radar-publish-spec.md`) → 별도 opus 4.8 세션에서 tsc·배포·master 머지
 - [ ] ❌ Meta 검수: 스크린캐스트 녹화 → 폼 업로드 → 제출 (초안 submission 1332487598864551)
 - [ ] 🟡 §8-3 실발행 5종 — **큐 4종이 approved+armed 로 대기 중**(2026-10-14, 아래 표).
