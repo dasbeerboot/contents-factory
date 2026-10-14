@@ -1,0 +1,18 @@
+name: threads_post
+kind: text
+platforms: [threads, instagram]
+questions:
+  - key: text.threads.angle
+  - key: text.threads.hook_count
+    required: false
+prompt_template: |
+  Write one Threads post for the persona above.
+  Lead with the consequence. One claim. Close on a check the reader can run.
+gates: [limits, forbidden_words, repeat_guard]
+limits:
+  max_chars: 500
+  max_emoji: 1
+  max_hashtags: 3
+  max_links: 0
+  forbid_em_dash: true
+credit_cap_per_item: 0
