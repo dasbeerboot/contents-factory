@@ -76,6 +76,7 @@ class BackgroundReport:
     ncc_median: float | None = None
     mad_median: float | None = None
     blocks_median: int = 0
+    tail_excluded_s: float = 0.0
 
     @property
     def ok(self) -> bool:
@@ -88,7 +89,8 @@ class BackgroundReport:
                 "jumps": list(self.jumps), "samples": self.samples,
                 "flow_median_1080px": self.flow_median,
                 "ncc_median": self.ncc_median, "mad_median": self.mad_median,
-                "blocks_median": self.blocks_median}
+                "blocks_median": self.blocks_median,
+                "tail_excluded_s": self.tail_excluded_s}
 
 
 def sobel(grey: Any) -> Any:
@@ -350,11 +352,20 @@ def frame_jump_scan(source: Path, *, ratio: float = SPIKE_RATIO,
 
 def check(source: Path, *, fps: float = vision.SAMPLE_FPS,
           limits: dict[str, Any] | None = None,
-          skip_frame_jump: bool = False) -> BackgroundReport:
+          skip_frame_jump: bool = False,
+          tail_s: float | None = None) -> BackgroundReport:
+    """Judge the background. `tail_s` excludes a deliberately frozen end card.
+
+    On an assembled reel the last couple of seconds are a held still, which is
+    exactly what FROZEN_BG looks for. Trimming the hold before the search is the
+    difference between the gate reporting a defect and reporting the design.
+    """
     numpy = vision.numpy_module()
     rules = limits or {}
     frozen_flow = float(rules.get("bg_frozen_flow") or FROZEN_FLOW)
     morph_ncc = float(rules.get("bg_morph_ncc") or MORPH_NCC)
+    hold = float(tail_s if tail_s is not None
+                 else (rules.get("endcard_hold_s") or 0.0))
     report = BackgroundReport()
     scale = vision.REFERENCE_WIDTH / float(ANALYSIS_WIDTH)
 
@@ -402,6 +413,18 @@ def check(source: Path, *, fps: float = vision.SAMPLE_FPS,
                                              float(numpy.median(dy)))) * scale, 2))
         nccs.append(round(float(numpy.median(correlation[usable])), 4))
 
+    if hold > 0:
+        from ..media import duration as _duration
+
+        cutoff = _duration(Path(source)) - hold
+        keep = [index for index, moment in enumerate(times) if moment <= cutoff]
+        times = [times[index] for index in keep]
+        flows = [flows[index] for index in keep]
+        nccs = [nccs[index] for index in keep]
+        block_counts = [block_counts[index] for index in keep]
+        report.tail_excluded_s = round(hold, 2)
+    if len(times) < 2:
+        raise FactoryError("NOT_ENOUGH_SAMPLES", str(len(times)))
     time_series = numpy.array(times)
     flow_series = numpy.array(flows)
     ncc_series = vision.median_smooth(numpy.array(nccs), SMOOTH_WINDOW)

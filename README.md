@@ -150,6 +150,82 @@ factory gen video --brief b_...                # 전부
 
 `slots`는 `"12:00Z"` 꼴 UTC만 받는다.
 
+## 🔑 외부 서비스 계정은 전부 본인 것 / Bring your own accounts
+
+**이 레포에는 공유 계정이 없다.** 클론한다고 어떤 크레딧도 따라오지 않는다. 아래 서비스는
+전부 사용자 본인이 가입하고, 본인이 결제하고, 본인 키를 넣는다. 설치 중 안내가 필요하면
+`/setup` 스킬의 §0이 서비스별 가입 위치·로그인 명령·확인 명령을 다 들고 있다.
+
+**Nothing here is a shared account.** Cloning this repo grants no credits on anything. Every
+service below is signed up for, paid for and keyed by you. The `/setup` skill's §0 walks
+through each one.
+
+| 서비스 | 필요한 이유 | 없으면 | 키 이름 |
+|---|---|---|---|
+| [Higgsfield](https://higgsfield.ai) | 이미지·영상 생성, TikTok 게시 | 이미지·영상 전부 불가 | CLI 로그인 + `HIGGSFIELD_MCP_TOKEN` |
+| [ElevenLabs](https://elevenlabs.io) | 내레이션 TTS, 발화 전사 | `tts` 단계·`stt_wpm` 게이트 불가 | `ELEVENLABS_API_KEY` |
+| [Anthropic](https://console.anthropic.com) | 글 생성 | `gen text` 불가 | `ANTHROPIC_API_KEY` |
+| [Supabase](https://supabase.com) | 미디어 공개 URL | 이미지·영상 발행 불가 (텍스트는 가능) | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
+| [Meta](https://developers.facebook.com) | Threads·Instagram 발행 | 두 플랫폼 발행 불가 | `THREADS_*`, `IG_*` |
+| [Google Cloud](https://console.cloud.google.com) | YouTube 업로드 | YouTube 발행 불가 | `YOUTUBE_*` |
+
+값은 어떤 출력에도 나오지 않는다 (`--dry-run` 페이로드엔 `<REDACTED:KEY>`). 문서·커밋·로그에
+값을 쓰지 않는다 — 키 **이름**만 쓴다.
+
+### Higgsfield 로그인 / Higgsfield login
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh
+higgsfield auth login
+higgsfield account status      # 이메일 · 플랜 · 잔여 크레딧
+```
+
+크레딧 실측 (2026-10-14 `higgsfield generate cost`). 포맷 yaml의 `credit_cap_per_item`이
+이 숫자 기준이다:
+
+| 쓰임 | 모델 | 비용 | 포맷 캡 |
+|---|---|---|---|
+| OG·썸네일·상품컷·카드뉴스 | `gpt_image_2` | 6.5 cr/장 | 8 / 8 / 10 / 30 |
+| 인물 스틸 (레퍼런스) | `nano_banana_pro` | 2 cr/장 | 영상 캡에 포함 |
+| 인물 스틸 (Soul) | `text2image_soul_v2` | 0.12 cr/장 | 영상 캡에 포함 |
+| 영상 테이크 720p | `seedance_2_0` | 4.5 cr/초 | `talking_head`·`pov` 150 |
+| 영상 테이크 1080p | `seedance_2_0` | 12 cr/초 | 24초면 288 — 캡 초과 |
+
+24초 토킹헤드 1편 ≈ **108 크레딧** (스틸 0.12 + 12초 테이크 2개). 유료 호출 전에 항상
+견적을 받아 캡과 대조하고, 넘으면 **호출 자체를 하지 않는다** (`BUDGET_EXCEEDED`).
+`--dry-run`은 과금 없이 단계별 견적만 찍는다.
+
+### TikTok 커넥터 / TikTok connector
+
+직접 TikTok API는 미심사 앱이면 비공개 게시만 되므로 Higgsfield MCP를 경유한다.
+`tiktok_connect`로 본인 계정을 연결하고 `connector_id`는 `platforms.json`에,
+토큰은 `credentials.env`의 `HIGGSFIELD_MCP_TOKEN`에 넣는다.
+
+> ⚠️ **MCP 토큰은 현재 정적이고 수 시간 만에 만료된다.** 만료되면 발행이 `HTTP_401`로
+> 멈춘다. 자동 갱신은 **아직 없다 (TODO: `factory token refresh --platform tiktok`)**.
+> 그때까지 TikTok에 장기 예약 발행을 걸어두면 토큰이 먼저 죽는다.
+
+### ElevenLabs voice_id
+
+Voice Design(글로 묘사해서 생성)이나 Instant Voice Cloning(본인 음성 샘플 복제, 유료
+플랜 필요)으로 만든 뒤 Voice Lab에서 id를 복사해 프로필 `voice.json`에 넣는다. 모델은
+`eleven_v3` — 구형 다국어 모델은 오프캠 내레이션이 로봇처럼 들린다. 플랜별 월 글자 쿼터는
+공식 pricing 페이지를 보라. 24초 영상 1편 대본이 약 320자였고, 편당 상한은 포맷의
+`limits.tts_chars_max`(기본 2000)다. 같은 문장 재합성은 캐시에 걸려 0자다.
+
+### Meta: 본인 앱으로 가는 경우 / your own Meta app
+
+남의 앱에 테스터로 들어가는 절차는 아래 "플랫폼 제약"과 `/setup` Step 4에 있다. 본인 앱을
+만든다면: 앱 생성 → Threads API / Instagram Graph API 제품 추가 → 리다이렉트 URL 등록 →
+본인 계정을 앱 역할에 추가. **개발 모드 앱은 본인 앱이어도 테스터 역할 계정만 OAuth가
+된다** — 플랫폼 안에서 초대를 수락하는 단계는 똑같이 필요하다. 일반 공개 발행은 앱 심사가
+필요하고 이 레포 범위 밖이다.
+
+### YouTube: 본인 GCP / your own GCP project
+
+`/setup` Step 6. 미검증 프로젝트는 업로드가 **private 고정**이다 — 검토 후 예약 공개에는
+문제없지만 알고 시작해야 한다.
+
 ## credentials.env 키 / Credential keys
 
 `~/.contents-factory/profiles/<name>/credentials.env`, 한 줄에 `KEY=value`, chmod 600.

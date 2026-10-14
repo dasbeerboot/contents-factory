@@ -363,7 +363,9 @@ def _stage_captions(context: Context) -> StageResult:
         return StageResult(stage="captions", status="dry_run",
                            detail={"cards": len(cards), "boxes": boxes})
     source = workspace.require(workspace.clip_video(), stage="captions")
-    total = media.duration(source) + _hold(context.limits)
+    # The take only. The end card hold is appended after the captions are burned
+    # in, so a track built for the full reel length runs past the footage.
+    total = media.duration(source)
     track = captions.render_track(cards, workspace.root / "captions",
                                   total_s=total, fps=assemble.FPS,
                                   metrics=metrics, frame=frame, zone=zone)
@@ -396,7 +398,8 @@ def _stage_assemble(context: Context) -> StageResult:
     hold = assemble.hold_last_frame(body, build / "hold.mp4",
                                     seconds=_hold(limits), width=frame[0],
                                     height=frame[1])
-    assemble.concat([body, hold], workspace.final())
+    assemble.concat([body, hold], workspace.final(), width=frame[0],
+                    height=frame[1])
     report = assemble.verify(workspace.final(), duration_band=context.duration_band,
                              width=frame[0], height=frame[1])
     status = "ok" if report.ok else "gate_fail"

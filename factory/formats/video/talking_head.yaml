@@ -39,6 +39,12 @@ still_prompt_template: |
   Background: the street behind her is quiet and deserted, with a pole, railing or kerb close to the camera on one side.
   Lighting: available daylight, consistent with the location.
   Negative: text, watermark, extra limbs, deformed hands, blurry, beauty filter, airbrushed skin, 3D render, illustration.
+# TODO (end card): Stage 5 asks the clip model to draw the card, and it mis-spells
+# it. A 2026-10-14 render of "SAJU UNNI" came back as "SAJU UNUI", centred over the
+# face instead of in the caption safe zone. The card belongs in the assemble stage
+# as an overlay, the way captions already are, leaving this stage to ask only for a
+# held closing frame. The slot stays until that lands so the golden prompt and the
+# takes already rendered against it stay comparable.
 prompt_template: |
   The START IMAGE is the exact first frame and face reference for {{host_identity}}.
   Keep the face, outfit, opening composition, camera height, subject placement, background, and lighting from the start image.

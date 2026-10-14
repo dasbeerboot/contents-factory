@@ -35,6 +35,10 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "viewer_voice": ("viewer_voice_name", "voice"),
 }
 RESERVED: tuple[str, ...] = ("duration_s", "end_s")
+# What the end card slot says on a take that is not the last one. Overridable
+# per format via `limits.continuation_endcard`.
+CONTINUATION_ENDCARD = ("no card, no text, the shot simply continues with the "
+                        "host still walking and talking")
 
 
 BRAND_LINE = re.compile(r"^\s*[-*]?\s*([A-Za-z][A-Za-z0-9 _/-]{1,40}?)\s*:\s*(\S.*)$")
@@ -138,8 +142,8 @@ def derived(*, profile_name: str, content_lang: str, duration_s: float,
 
 def for_takes(base: dict[str, Any], *, template: str, lengths: Sequence[int],
               lines: Sequence[str], limits: dict[str, Any] | None,
-              spoken_slots: Sequence[str] = ("hook_line", "body_lines")
-              ) -> list[dict[str, Any]]:
+              spoken_slots: Sequence[str] = ("hook_line", "body_lines"),
+              endcard_slot: str = "endcard") -> list[dict[str, Any]]:
     """One value set per take, each rebased to that take's own window.
 
     A reel longer than the clip model's cap is rendered as consecutive takes.
@@ -149,9 +153,16 @@ def for_takes(base: dict[str, Any], *, template: str, lengths: Sequence[int],
 
     Lines are dealt out in proportion to take length and never split mid-line,
     because a take that ends mid-sentence cannot be cut together.
+
+    Only the last take carries the end card. Giving an earlier take a zero
+    length end card stage is not enough — the model renders the card anyway, and
+    since the next take starts from this one's last frame, the whole reel then
+    opens on an end card. The card text itself has to be replaced.
     """
     rules = limits or {}
     hold = float(rules.get("endcard_min_s") or ENDCARD_HOLD_S)
+    continuation = str(rules.get("continuation_endcard")
+                       or CONTINUATION_ENDCARD)
     total = float(sum(lengths)) or 1.0
     remaining = list(lines)
     shares: list[list[str]] = []
@@ -169,9 +180,12 @@ def for_takes(base: dict[str, Any], *, template: str, lengths: Sequence[int],
         values = dict(base)
         # Only the last take carries the end card, so the hold is not reserved
         # in the middle of the reel.
+        final = index == len(lengths) - 1
         values.update(stage_times(template, duration_s=float(length),
-                                  hold_s=hold if index == len(lengths) - 1 else 0.0))
+                                  hold_s=hold if final else 0.0))
         values["duration_s"] = int(length)
+        if not final and endcard_slot in values:
+            values[endcard_slot] = continuation
         spoken = list(share) or [str(base.get(spoken_slots[0]) or "")]
         if len(spoken_slots) >= 2:
             values[spoken_slots[0]] = spoken[0]

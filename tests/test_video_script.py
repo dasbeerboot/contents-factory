@@ -119,9 +119,14 @@ def test_takes_are_rebased_to_their_own_window() -> None:
     per_take = values.for_takes(base, template=TEMPLATE, lengths=[12, 12],
                                 lines=lines, limits=LIMITS)
     assert [entry["duration_s"] for entry in per_take] == [12, 12]
-    # Only the last take reserves the end card hold.
+    # Only the last take reserves the end card hold, and only the last take
+    # carries the card text: a zero length stage is not enough to stop the model
+    # drawing it, and the next take starts on this take's last frame.
     assert per_take[0]["end_s"] == 12.0
     assert per_take[1]["end_s"] == 9.5
+    assert per_take[0]["endcard"] != base["endcard"]
+    assert "no card" in per_take[0]["endcard"]
+    assert per_take[1]["endcard"] == base["endcard"]
     # Every line is dealt out exactly once, and none is split.
     spoken = " ".join(f"{entry['hook_line']} {entry['body_lines']}"
                       for entry in per_take)

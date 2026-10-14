@@ -95,8 +95,11 @@ def burn_captions(source: Path, frames_dir: Path, destination: Path, *,
     if not any(Path(frames_dir).glob("*.png")):
         raise FactoryError("CAPTION_FRAMES_MISSING")
     destination.parent.mkdir(parents=True, exist_ok=True)
+    # shortest=1: the caption sequence must not extend the video it sits on.
+    # A track rendered a few frames long would otherwise freeze the last frame
+    # for the difference, which then lands inside the end card hold.
     media.ffmpeg(["-i", str(source), "-framerate", str(fps), "-i", pattern,
-                  "-filter_complex", "[0:v][1:v]overlay=0:0:shortest=0[v]",
+                  "-filter_complex", "[0:v][1:v]overlay=0:0:shortest=1[v]",
                   "-map", "[v]", "-map", "0:a?",
                   "-c:v", VIDEO_CODEC, "-preset", PRESET, "-crf", CRF,
                   "-pix_fmt", "yuv420p", "-c:a", "copy",
@@ -114,29 +117,45 @@ def mux_audio(source: Path, audio: Path, destination: Path) -> Path:
     return destination
 
 
-def concat(parts: list[Path], destination: Path, *, fps: int = FPS) -> Path:
-    """Join normalised pieces. The silent end card gets a silent track added so
-    the concat does not drop audio from the part before it."""
+def concat(parts: list[Path], destination: Path, *, fps: int = FPS,
+           width: int = WIDTH, height: int = HEIGHT) -> Path:
+    """Join the pieces into the deliverable.
+
+    The concat **filter**, not the concat demuxer. The demuxer wants every input
+    to share stream parameters and does not say so when they do not: joining a
+    24 second body whose audio came through from the take with a 2.5 second end
+    card carrying a freshly generated silent track produced a 44 second file out
+    of 29 seconds of material, because the mismatched timebases desynchronised
+    and the container duration took the longer stream.
+
+    The filter resamples and rescales every input to one shape first, so the
+    output length is the sum of the inputs by construction.
+    """
     if not parts:
         raise FactoryError("NO_PARTS")
     if len(parts) == 1:
-        return normalise(parts[0], destination, fps=fps)
-    prepared: list[Path] = []
+        return normalise(parts[0], destination, width=width, height=height,
+                         fps=fps)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    inputs: list[str] = []
+    chains: list[str] = []
+    labels: list[str] = []
     for index, part in enumerate(parts):
+        inputs.extend(["-i", str(part)])
+        chains.append(f"[{index}:v]scale={width}:{height},setsar=1,fps={fps}"
+                      f"[v{index}]")
         if media.has_audio(part):
-            prepared.append(part)
-            continue
-        with_silence = destination.parent / f"silent_{index:02d}.mp4"
-        media.ffmpeg(["-i", str(part), "-f", "lavfi", "-i",
-                      "anullsrc=r=48000:cl=stereo", "-shortest",
-                      "-c:v", "copy", "-c:a", AUDIO_CODEC,
-                      "-b:a", AUDIO_BITRATE, str(with_silence)])
-        prepared.append(with_silence)
-    listing = destination.parent / "final_concat.txt"
-    listing.parent.mkdir(parents=True, exist_ok=True)
-    listing.write_text("".join(f"file '{part.resolve()}'\n" for part in prepared),
-                       encoding="utf-8")
-    media.ffmpeg(["-f", "concat", "-safe", "0", "-i", str(listing),
+            chains.append(f"[{index}:a]aresample=48000,aformat="
+                          f"sample_fmts=fltp:channel_layouts=stereo[a{index}]")
+        else:
+            # A silent card still needs a track, or the concat filter drops the
+            # audio of every part before it.
+            chains.append(f"anullsrc=r=48000:cl=stereo,atrim=duration="
+                          f"{media.duration(part):.3f}[a{index}]")
+        labels.append(f"[v{index}][a{index}]")
+    chains.append(f"{''.join(labels)}concat=n={len(parts)}:v=1:a=1[v][a]")
+    media.ffmpeg([*inputs, "-filter_complex", ";".join(chains),
+                  "-map", "[v]", "-map", "[a]",
                   "-c:v", VIDEO_CODEC, "-preset", PRESET, "-crf", CRF,
                   "-pix_fmt", "yuv420p", "-c:a", AUDIO_CODEC,
                   "-b:a", AUDIO_BITRATE, "-movflags", "+faststart",

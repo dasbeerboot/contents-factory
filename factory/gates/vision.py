@@ -266,13 +266,22 @@ def scale_factor(analysis_width: int = ANALYSIS_WIDTH) -> float:
     return REFERENCE_WIDTH / float(analysis_width)
 
 
+SHEET_CELL_WIDTH = 150
+SHEET_MAX_FRAMES = 96
+
+
 def contact_sheet(frames: Sequence[Path], destination: Path, *,
                   boxes: Sequence[Sequence[tuple[int, int, int, int]]] = (),
-                  columns: int = 12, caption: str = "") -> Path:
+                  columns: int = 12, caption: str = "",
+                  cell_width: int = SHEET_CELL_WIDTH) -> Path:
     """A strip of the sampled frames with any boxes drawn on, for eyeballing.
 
     The automated verdict is never the whole gate: video-rules requires a human
     to look at the arm sheet and the frame strip before a take goes out.
+
+    Cells are deliberately small. A sheet is for scanning a whole take at once
+    and then getting sent somewhere, so full-resolution thumbnails defeat the
+    purpose: the first version produced a 16 MB png nobody could open quickly.
     """
     image_module_ = image_module()
     try:
@@ -281,20 +290,27 @@ def contact_sheet(frames: Sequence[Path], destination: Path, *,
         raise FactoryError("GATE_DEPS_MISSING", "pillow") from None
     if not frames:
         raise FactoryError("NO_FRAMES")
-    thumbnails = [image_module_.open(path).convert("RGB") for path in frames]
-    cell_width = max(1, thumbnails[0].width // 2)
-    cell_height = max(1, thumbnails[0].height // 2)
+    # A long take sampled at 4 fps is a hundred frames; show an even spread
+    # rather than the first few minutes.
+    step = max(1, -(-len(frames) // SHEET_MAX_FRAMES))
+    picked = list(range(0, len(frames), step))
+    thumbnails = [image_module_.open(frames[index]).convert("RGB")
+                  for index in picked]
+    cell_width = max(1, int(cell_width))
+    cell_height = max(1, int(round(cell_width * thumbnails[0].height
+                                   / max(thumbnails[0].width, 1))))
     rows = -(-len(thumbnails) // columns)
     header = 26 if caption else 0
     sheet = image_module_.new("RGB", (cell_width * columns,
                                       cell_height * rows + header), (16, 16, 18))
     pen = ImageDraw.Draw(sheet)
-    for index, thumbnail in enumerate(thumbnails):
+    for position, thumbnail in enumerate(thumbnails):
+        index = picked[position]
         scale_x = cell_width / thumbnail.width
         scale_y = cell_height / thumbnail.height
         cell = thumbnail.resize((cell_width, cell_height))
-        x = (index % columns) * cell_width
-        y = header + (index // columns) * cell_height
+        x = (position % columns) * cell_width
+        y = header + (position // columns) * cell_height
         sheet.paste(cell, (x, y))
         for box in (boxes[index] if index < len(boxes) else ()):
             pen.rectangle([x + int(box[0] * scale_x), y + int(box[1] * scale_y),
@@ -303,5 +319,9 @@ def contact_sheet(frames: Sequence[Path], destination: Path, *,
     if caption:
         pen.text((8, 8), caption[:200], fill=(230, 230, 230))
     destination.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(destination)
-    return destination
+    # Jpeg, not png. A sheet of a hundred photographic thumbnails is several
+    # megabytes lossless, and a review artifact that is slow to open or too big
+    # to send does not get looked at.
+    target = destination.with_suffix(".jpg")
+    sheet.save(target, quality=85, optimize=True)
+    return target

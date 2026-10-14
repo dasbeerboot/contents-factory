@@ -349,7 +349,11 @@ def _media_gate(gate: str, media_path: Path | None, *, profile: Profile,
         report = limb_motion.check(media_path, limits=rules,
                                    sheet=media_path.parent / "gates" / "limb.png")
     elif gate == "bg_motion":
-        report = bg_motion.check(media_path, limits=rules)
+        # The end card is a held still by design. Measuring it as background
+        # motion reports the design as a defect.
+        held = (float(rules.get("endcard_min_s") or 0.0)
+                if media_path.name == "final.mp4" else 0.0)
+        report = bg_motion.check(media_path, limits=rules, tail_s=held)
     else:
         report = identity.check_video(media_path,
                                       reference=profile.soul.ref_image,
