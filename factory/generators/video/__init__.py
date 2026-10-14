@@ -101,12 +101,26 @@ class Context:
             profile_fallbacks=values.from_brand(self.profile.brand))
 
     def record(self, result: StageResult) -> None:
+        """Stage rollup: status and artefacts, never money.
+
+        Charges are written by the stage that made the call, keyed on the
+        provider job id, because that is the only thing that identifies the
+        work rather than the attempt. A rollup carrying credits too would
+        double every paid stage.
+        """
         ledger.record(self.home, track=TRACK, kind=self.brief.format,
                       model=str(result.detail.get("model") or ""),
-                      credits=result.credits, profile=self.brief.profile,
+                      credits=0.0, profile=self.brief.profile,
                       ref=self.brief.id, result=result.status,
-                      detail={"stage": result.stage, **result.detail})
+                      detail={"stage": result.stage, "rollup": True,
+                              "stage_credits": result.credits, **result.detail})
         self.workspace.note(result.stage, result.as_dict())
+
+    def charge(self, *, op: str, stage: str, model: str, credits: float,
+               detail: dict[str, Any]) -> None:
+        ledger.charge(self.home, op=op, track=TRACK, kind=self.brief.format,
+                      model=model, credits=credits, profile=self.brief.profile,
+                      ref=self.brief.id, detail={"stage": stage, **detail})
 
 
 def _frame(limits: dict[str, Any]) -> tuple[int, int]:
@@ -208,6 +222,11 @@ def _stage_still(context: Context) -> StageResult:
     quoted = still.quote(job)
     context.allowance.check(quoted, stage="still")
     detail = still.generate(job, destination)
+    still_job = str(detail.get("job_id") or "")
+    if not still_job:
+        raise FactoryError("PROVIDER_JOB_ID_MISSING", job.model[:32])
+    context.charge(op=f"higgsfield:{still_job}", stage="still", model=job.model,
+                   credits=quoted, detail=detail)
     return StageResult(stage="still", credits=quoted, detail=detail)
 
 
@@ -255,10 +274,11 @@ def _stage_clip(context: Context) -> StageResult:
         context.allowance.check(quoted, stage=take.name)
         part = directory / f"{take.name}.mp4"
         detail = clip.render_take(take, part, plan_=plan)
-        ledger.record(context.home, track=TRACK, kind=context.brief.format,
-                      model=plan.model, credits=quoted,
-                      profile=context.brief.profile, ref=context.brief.id,
-                      detail={"stage": "clip", **detail})
+        take_job = str(detail.get("job_id") or "")
+        if not take_job:
+            raise FactoryError("PROVIDER_JOB_ID_MISSING", take.name[:32])
+        context.charge(op=f"higgsfield:{take_job}", stage="clip",
+                       model=plan.model, credits=quoted, detail=detail)
         spent += quoted
         parts.append(Path(detail["path"]))
         results.append(detail)

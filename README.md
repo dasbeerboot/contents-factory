@@ -312,6 +312,23 @@ select cron.schedule(
 버킷을 직접 쓰지 않을 거면 `media[].public_url`을 큐 적재 시점에 채워 넣으면 된다.
 그 경우 `media_host`는 아무것도 하지 않고 그 URL을 그대로 쓴다 (BYO 호스팅).
 
+## 원장 / Ledger
+
+`~/.contents-factory/ledger.jsonl`, 한 줄 1건, append only.
+
+- **돈이 드는 호출은 전부 `ledger.charge()` 한 곳**으로 간다. `op`(작업 키)가 필수이고,
+  값은 프로바이더 작업 id(`higgsfield:<job_id>`)다. 같은 `op` 가 이미 있으면 안 쓴다 —
+  단계 재실행·크래시 후 재개·복구 스크립트 재생이 전부 1회로 수렴한다.
+- 작업 id 를 못 받은 호출은 `PROVIDER_JOB_ID_MISSING` 으로 멈춘다. 키 없는 과금은
+  같은 작업을 두 번 청구하는 경로라서 추정하지 않는다.
+- 단계 롤업·발행·토큰 갱신은 과금이 아니라 `record()` 로 가고 `credits=0`·
+  `detail.rollup=true` 다. 영상 단계 롤업이 크레딧까지 들고 있으면 유료 단계가 전부
+  두 배가 된다.
+- `factory ledger summary` 와 단계별 캡(`generators/budget.py`)은 같은 파일을 읽는다.
+
+⚠️ 2026-10-14 이전 행에는 `op` 가 없다. 그 구간의 image 13.0cr 은 같은 작업
+`de1dac52…` 가 두 번 기록된 것이고 실제는 6.5cr 이다.
+
 ## 프롬프트 캐싱 / Prompt caching
 
 `workspace/LLM-API-캐싱-규칙.md` + P0-SPEC §10 결정4 준수.

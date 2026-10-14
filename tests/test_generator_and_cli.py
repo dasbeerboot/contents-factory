@@ -403,3 +403,48 @@ def test_the_payload_never_sends_budget_tokens() -> None:
     payload = text_generator.build_payload("system", "user")
     assert "thinking" not in payload
     assert payload["max_tokens"] >= 8000
+
+
+# ------------------------------------- ledger: one job, one charge (2026-10-14)
+
+def test_the_same_provider_job_is_charged_once(isolated_home: Path) -> None:
+    """A single image job was recorded twice and the summary read 13.0 credits for
+    6.5 of work. The key is the job, not the moment the call was made."""
+    for _ in range(3):
+        ledger.charge(isolated_home, op="higgsfield:de1dac52", track="image",
+                      kind="og", model="gpt_image_2", credits=6.5, ref="b_1")
+    assert len(list(ledger.read(isolated_home))) == 1
+    assert ledger.summary(isolated_home)["tracks"]["image"]["credits"] == 6.5
+
+
+def test_a_charge_without_a_key_is_refused(isolated_home: Path) -> None:
+    with pytest.raises(FactoryError) as error:
+        ledger.charge(isolated_home, op="", track="image", kind="og", credits=6.5)
+    assert error.value.code == "LEDGER_OP_REQUIRED"
+
+
+def test_a_repeat_charge_returns_the_original_row(isolated_home: Path) -> None:
+    first = ledger.charge(isolated_home, op="higgsfield:j1", track="video",
+                          kind="talking_head", credits=54.0, ref="b_1")
+    again = ledger.charge(isolated_home, op="higgsfield:j1", track="video",
+                          kind="talking_head", credits=99.0, ref="b_1")
+    assert again.ts == first.ts
+    assert again.credits == 54.0
+
+
+def test_unkeyed_rows_still_append(isolated_home: Path) -> None:
+    """Rollups, publishes and token refreshes are not charges and need no key."""
+    for _ in range(2):
+        ledger.record(isolated_home, track="publish", kind="text",
+                      platform="threads", ref="q_1")
+    assert len(list(ledger.read(isolated_home))) == 2
+
+
+def test_the_budget_sees_a_deduplicated_charge_once(isolated_home: Path) -> None:
+    from factory.generators import budget
+
+    allowance = budget.for_brief(isolated_home, ref="b_1", format_cap=150)
+    for _ in range(4):
+        ledger.charge(isolated_home, op="higgsfield:j1", track="video",
+                      kind="talking_head", credits=54.0, ref="b_1")
+    assert allowance.spent() == 54.0

@@ -627,11 +627,17 @@ def _gen_image(config: Config, args: argparse.Namespace, brief: Brief,
         saved = [str(fetch.download(url, directory / f"{spec.name}_{index}_{slot}"))
                  for slot, url in enumerate(urls)
                  if str(url).lower().startswith("http")]
-        ledger.record(home, track="image", kind=brief.format, model=job.model,
-                      credits=per_run, profile=brief.profile, ref=brief.id,
+        job_id = str(payload.get("id") or "")
+        if not job_id:
+            # No id means no idempotency key, and an unkeyed charge is how the
+            # same job got billed twice. Refuse rather than guess.
+            raise FactoryError("PROVIDER_JOB_ID_MISSING", job.model[:32])
+        ledger.charge(home, op=f"higgsfield:{job_id}", track="image",
+                      kind=brief.format, model=job.model, credits=per_run,
+                      profile=brief.profile, ref=brief.id,
                       result="ok" if saved else "no_output",
-                      detail={"job_id": str(payload.get("id") or ""),
-                              "files": saved, "quoted_credits": per_run})
+                      detail={"job_id": job_id, "files": saved,
+                              "quoted_credits": per_run})
         outputs.extend(Output(path=path, gates={}, chosen=False) for path in saved)
     if not outputs:
         raise FactoryError("NO_IMAGE_OUTPUT", brief.id)
