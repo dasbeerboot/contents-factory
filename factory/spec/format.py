@@ -52,6 +52,9 @@ class FormatSpec(BaseModel):
     duration_s: list[int] | None = None
     questions: list[Question] = Field(default_factory=list)
     prompt_template: str = ""
+    # Video formats need a second golden prompt for the first frame: the still
+    # decides framing, arms and identity, and the clip model then locks them.
+    still_prompt_template: str = ""
     gates: list[str] = Field(default_factory=list)
     limits: dict[str, Any] = Field(default_factory=dict)
     credit_cap_per_item: int = Field(default=0, ge=0)

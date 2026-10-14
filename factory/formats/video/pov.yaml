@@ -22,6 +22,19 @@ questions:
   - key: video.pov.endcard
     question_ko: "마지막 엔드카드 문구는 무엇인가요?"
     question_en: "What should the final end card say?"
+still_prompt_template: |
+  Vertical 9:16 first frame of a rear-camera walking video.
+  Subject: {{host_identity}}, walking toward the camera, talking to the lens.
+  The camera is held at chest height a step or two in front of the subject. This is not a selfie.
+  Location: {{location}}
+  Outfit: {{outfit}}
+  Visual identity: {{identity}}
+  Framing: medium friend-distance framing from the front, body visible from about the waist up, face about one quarter to one third of frame height, torso square to the camera and both eyes visible.
+  Face shape: short compact round face, not long, not narrow, wide open eyes, natural skin texture, no beauty filter, no smoothing.
+  Arms: relaxed and mid-swing or out of frame, elbows never locked, hands never held away from the body.
+  Background: a real street, no identifiable passersby in the near or middle distance, distant small silhouettes acceptable.
+  Lighting: available light only, consistent with the location.
+  Negative: text, letters, signage, banners, subtitles, watermark, phone in frame, selfie arm, camera operator, mirror, second person, third hand, duplicate limbs, locked elbow, outstretched arm, profile view, side view, back of head, walking away, long narrow face, small eyes, beauty filter, 3D render.
 prompt_template: |
   The START IMAGE is the exact first frame and face reference for {{host_identity}}.
   Keep the face, outfit, opening composition, camera distance, background, and lighting from the start image.

@@ -42,11 +42,10 @@ limits:
   height_px: 1350
   slides_target: [6, 10]
   slides_max: 20
+  # A feed card carries no platform chrome, so the safe zone is just this inset.
+  # caption_safe_zone derives x 96..984 / y 96..1254 from it; stating the band a
+  # second time would only give the two copies a chance to drift.
   safe_margin_px: 96
-  # A feed card carries no platform chrome, so the zone is just the margin. These
-  # are this frame's own pixels, not the 9:16 video zone.
-  safe_zone_px: {x_min: 96, x_max: 984, y_min: 96, y_max: 1254}
-  max_text_width_px: 888
   text_coverage_max_pct: 28
   instagram_file_mb_max_each: 8
   format: jpeg

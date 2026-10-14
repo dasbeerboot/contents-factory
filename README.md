@@ -33,9 +33,12 @@ factory profile add <name> [--from _example] | list | show [name]
 factory brief new --kind text --format threads_post [--profile X] [--answers file|-]
 factory brief show --brief b_...
 factory gen text  --brief b_... [--dry-run]
-factory gen image --brief b_... [--dry-run]   # higgsfield CLI argv 조립, --dry-run은 호출 없음
+factory gen image --brief b_... [--dry-run]   # 실제 higgsfield 호출, --dry-run은 argv만
+factory gen video --brief b_... [--stage script|still|clip|tts|captions|assemble|all]
+                  [--dry-run] [--force]       # 단계별 실행, 산출물 있으면 건너뜀
 factory gate run (--brief b_... | --text "...") [--format threads_post] [--gate repeat_guard]
                  [--box x,y,width,height[,label]]      # caption_safe_zone 입력
+                 [--media path]                        # 영상 게이트 대상 (기본: brief 산출물)
                  [--item q_...]                        # duplicate_copy 자기 제외
 factory queue add --platform threads [--brief b_... --output 0] [--text "..."]
                   [--media path --public-url url] [--slot next|2026-10-15T12:00:00Z]
@@ -44,6 +47,8 @@ factory queue add --platform threads [--brief b_... --output 0] [--text "..."]
 factory queue list [--pending] [--json] | approve | unapprove | arm --reason "..." | disarm | purge
 factory queue reschedule q_... --slot next|<ISO>   # 슬롯 이동 (발행본·미확정 배송은 거부)
 factory queue reopen --item q_... --reason "..."   # unknown phase 해제 (사람 확인 후)
+factory media host --item q_... [--index 0] [--dry-run]  # 로컬 미디어 → 공개 URL,
+                                                       # media[].public_url 기록
 factory publish <platform> --item q_... [--dry-run]
 factory schedule install|remove|status [--runner launchd|cron] | tick [--dry-run]
 factory auth threads   --profile X [--app-id ID] [--redirect URI] [--exchange-url URL]
@@ -95,6 +100,49 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
   `container_id`나 `published_id`가 남아 있으면 거부한다(`DELIVERY_MAY_BE_PUBLISHED`).
 - `phase=published`인데 `published` 플래그가 없으면 tick이 플래그만 복구한다(재발행 안 함).
 
+## 영상 파이프라인 / Video pipeline
+
+```sh
+uv sync --extra video      # numpy + pillow. 없으면 GATE_DEPS_MISSING
+factory gen video --brief b_... --dry-run      # 단계별 비용 견적까지
+factory gen video --brief b_... --stage still  # 한 단계만
+factory gen video --brief b_...                # 전부
+```
+
+단계는 `script → still → clip → tts → captions → assemble`. 명령이 단계마다 끊기므로
+중간 산출물은 `~/.contents-factory/outputs/<brief_id>/`에 쌓이고 `stages.json`이 뭐가
+있는지 기록한다. 산출물이 이미 있으면 그 단계는 건너뛴다 — 재렌더는 `--force`로만, 원장에
+별도 과금으로 남는다.
+
+- **편당 캡.** 유료 호출마다 프로바이더에 견적을 묻고 `credit_cap_per_item`(포맷 yaml)에서
+  원장이 이미 기록한 금액을 뺀 잔액과 대조한다. 넘으면 `BUDGET_EXCEEDED`로 **호출 전에**
+  멈춘다. 취소된 작업도 과금되기 때문이다.
+- **재롤 없음.** 실패한 테이크는 폐기하고 예비안을 넣는다 (`docs/rules/video-rules.md` §8–9).
+- **골든 프롬프트.** `script` 단계가 포맷 템플릿의 슬롯만 바뀌었는지 검사한다. 슬롯 밖
+  문장이 다르면 `SCRIPT_GATE_FAILED`로 렌더하지 않는다.
+- **멀티테이크.** 클립 모델 상한(15s)보다 긴 영상은 연속 테이크로 나누고, 뒤 테이크의 시작
+  이미지는 **앞 테이크의 마지막 프레임**이다. 같은 스틸로 두 번 뽑으면 접합부에서 배경이
+  처음으로 되돌아간다.
+- **해상도는 예산 레버.** 24초를 1080p로 뽑으면 288크레딧, 720p + 조립 시 업스케일이면
+  108크레딧이다. `limits.clip_resolution`.
+- **자막 시계.** 자막 타이밍은 실제로 재생되는 오디오를 따른다 (`limits.caption_source`).
+  테이크가 자기 음성을 갖고 있으면 그 테이크를 전사해서 맞춘다.
+
+페르소나 고유값(voice id, Soul id, 레퍼런스 이미지, 엔드카드 문구)은 전부 프로필에서 온다.
+엔드카드 같은 고정 문구는 `brand.md`의 `- End card: ...` 줄이 슬롯 값이 된다.
+
+### 영상 게이트 / Video gates
+
+| 게이트 | 잡는 것 |
+|---|---|
+| `stt_wpm` | 실발화 wpm, 승인 대본 대비 충실도, 필러·중복어. 전사는 **현재 테이크**에서 새로 뜬다 (오디오 해시로 캐시 무효화) |
+| `limb_motion` | 테이크 내내 안 움직이는 팔. 몸통 기준 상대 벡터의 표준편차로 판정, 팔이 프레임 밖이면 PASS |
+| `bg_motion` | `FROZEN_BG`(배경이 안 흐름) · `MORPH_BG`(흐르지만 모양이 변형) · `FRAME_JUMP`(한 프레임 순간이동) |
+| `identity` | 레퍼런스 대비 얼굴 길이/폭 비. 비율만으로 끝내지 않고 몽타주를 같이 내놓는다 |
+
+`factory gate run --brief b_...`는 brief의 렌더 결과를 자동으로 찾고, `caption_safe_zone`에
+렌더러가 실제로 그린 박스를 넘긴다 — 손으로 좌표를 치지 않는다.
+
 ## 프로필 / Profile
 
 `profiles/<name>/` (레포 예시) 또는 `~/.contents-factory/profiles/<name>/` (운영본).
@@ -113,6 +161,82 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
 | `credentials.env` | **런타임 홈에만.** chmod 600. 키 목록은 아래 |
 
 `slots`는 `"12:00Z"` 꼴 UTC만 받는다.
+
+## 🔑 외부 서비스 계정은 전부 본인 것 / Bring your own accounts
+
+**이 레포에는 공유 계정이 없다.** 클론한다고 어떤 크레딧도 따라오지 않는다. 아래 서비스는
+전부 사용자 본인이 가입하고, 본인이 결제하고, 본인 키를 넣는다. 설치 중 안내가 필요하면
+`/setup` 스킬의 §0이 서비스별 가입 위치·로그인 명령·확인 명령을 다 들고 있다.
+
+**Nothing here is a shared account.** Cloning this repo grants no credits on anything. Every
+service below is signed up for, paid for and keyed by you. The `/setup` skill's §0 walks
+through each one.
+
+| 서비스 | 필요한 이유 | 없으면 | 키 이름 |
+|---|---|---|---|
+| [Higgsfield](https://higgsfield.ai) | 이미지·영상 생성, TikTok 게시 | 이미지·영상 전부 불가 | CLI 로그인 + `HIGGSFIELD_MCP_TOKEN` |
+| [ElevenLabs](https://elevenlabs.io) | 내레이션 TTS, 발화 전사 | `tts` 단계·`stt_wpm` 게이트 불가 | `ELEVENLABS_API_KEY` |
+| [Anthropic](https://console.anthropic.com) | 글 생성 | `gen text` 불가 | `ANTHROPIC_API_KEY` |
+| [Supabase](https://supabase.com) | 미디어 공개 URL | 이미지·영상 발행 불가 (텍스트는 가능) | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
+| [Meta](https://developers.facebook.com) | Threads·Instagram 발행 | 두 플랫폼 발행 불가 | `THREADS_*`, `IG_*` |
+| [Google Cloud](https://console.cloud.google.com) | YouTube 업로드 | YouTube 발행 불가 | `YOUTUBE_*` |
+
+값은 어떤 출력에도 나오지 않는다 (`--dry-run` 페이로드엔 `<REDACTED:KEY>`). 문서·커밋·로그에
+값을 쓰지 않는다 — 키 **이름**만 쓴다.
+
+### Higgsfield 로그인 / Higgsfield login
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh
+higgsfield auth login
+higgsfield account status      # 이메일 · 플랜 · 잔여 크레딧
+```
+
+크레딧 실측 (2026-10-14 `higgsfield generate cost`). 포맷 yaml의 `credit_cap_per_item`이
+이 숫자 기준이다:
+
+| 쓰임 | 모델 | 비용 | 포맷 캡 |
+|---|---|---|---|
+| OG·썸네일·상품컷·카드뉴스 | `gpt_image_2` | 6.5 cr/장 | 8 / 8 / 10 / 30 |
+| 인물 스틸 (레퍼런스) | `nano_banana_pro` | 2 cr/장 | 영상 캡에 포함 |
+| 인물 스틸 (Soul) | `text2image_soul_v2` | 0.12 cr/장 | 영상 캡에 포함 |
+| 영상 테이크 720p | `seedance_2_0` | 4.5 cr/초 | `talking_head`·`pov` 150 |
+| 영상 테이크 1080p | `seedance_2_0` | 12 cr/초 | 24초면 288 — 캡 초과 |
+
+24초 토킹헤드 1편 ≈ **108 크레딧** (스틸 0.12 + 12초 테이크 2개). 유료 호출 전에 항상
+견적을 받아 캡과 대조하고, 넘으면 **호출 자체를 하지 않는다** (`BUDGET_EXCEEDED`).
+`--dry-run`은 과금 없이 단계별 견적만 찍는다.
+
+### TikTok 커넥터 / TikTok connector
+
+직접 TikTok API는 미심사 앱이면 비공개 게시만 되므로 Higgsfield MCP를 경유한다.
+`tiktok_connect`로 본인 계정을 연결하고 `connector_id`는 `platforms.json`에,
+토큰은 `credentials.env`의 `HIGGSFIELD_MCP_TOKEN`에 넣는다.
+
+> ⚠️ **MCP 토큰은 현재 정적이고 수 시간 만에 만료된다.** 만료되면 발행이 `HTTP_401`로
+> 멈춘다. 자동 갱신은 **아직 없다 (TODO: `factory token refresh --platform tiktok`)**.
+> 그때까지 TikTok에 장기 예약 발행을 걸어두면 토큰이 먼저 죽는다.
+
+### ElevenLabs voice_id
+
+Voice Design(글로 묘사해서 생성)이나 Instant Voice Cloning(본인 음성 샘플 복제, 유료
+플랜 필요)으로 만든 뒤 Voice Lab에서 id를 복사해 프로필 `voice.json`에 넣는다. 모델은
+`eleven_v3` — 구형 다국어 모델은 오프캠 내레이션이 로봇처럼 들린다. 플랜별 월 글자 쿼터는
+공식 pricing 페이지를 보라. 24초 영상 1편 대본이 약 320자였고, 편당 상한은 포맷의
+`limits.tts_chars_max`(기본 2000)다. 같은 문장 재합성은 캐시에 걸려 0자다.
+
+### Meta: 본인 앱으로 가는 경우 / your own Meta app
+
+남의 앱에 테스터로 들어가는 절차는 아래 "플랫폼 제약"과 `/setup` Step 4에 있다. 본인 앱을
+만든다면: 앱 생성 → Threads API / Instagram Graph API 제품 추가 → 리다이렉트 URL 등록 →
+본인 계정을 앱 역할에 추가. **개발 모드 앱은 본인 앱이어도 테스터 역할 계정만 OAuth가
+된다** — 플랫폼 안에서 초대를 수락하는 단계는 똑같이 필요하다. 일반 공개 발행은 앱 심사가
+필요하고 이 레포 범위 밖이다.
+
+### YouTube: 본인 GCP / your own GCP project
+
+`/setup` Step 6. 미검증 프로젝트는 업로드가 **private 고정**이다 — 검토 후 예약 공개에는
+문제없지만 알고 시작해야 한다.
 
 ## credentials.env 키 / Credential keys
 
@@ -229,6 +353,11 @@ tests/
 | 팩토리 | 원본 |
 |---|---|
 | `gates/repeat_guard.py` | `~/.saju-threads/scripts/repeat_guard.py` |
+| `gates/{vision,limb_motion,bg_motion}.py` | `~/.saju-threads/reelv1/gates/{limb_motion,bg_motion}.py` |
+| `gates/identity.py` | `reelv1` eyemetric + saju-threads `docs/video-briefs/STILL-GATE.md` §B-7 |
+| `gates/stt_wpm.py` | `reelv1/stt.py`, `viewer_voice.py` |
+| `generators/video/script.py` | `docs/video-briefs/prompts-2026-09-15/gen.py --check` |
+| `generators/video/{tts,captions,assemble}.py` | `reelv1/{tts,captions,textrender_safe,assemble}.py` |
 | `publishers/threads.py` | `publish.sh`, `threads_delivery.py` |
 | `publishers/instagram.py` | `ig_publish.sh`, `ig_preview.sh` |
 | `publishers/tiktok.py` | `tiktok_publish.py` |

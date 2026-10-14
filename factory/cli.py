@@ -6,6 +6,7 @@ import getpass
 import json
 import sys
 import webbrowser
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
@@ -16,10 +17,13 @@ from .auth import threads as threads_auth
 from .config import Config, init_home, load_config, repo_root
 from .credentials import load_profile_env
 from .errors import FactoryError
-from .gates import (caption_safe_zone, cta_single, duplicate_copy,
-                    forbidden_words, limits, repeat_guard)
+from .gates import (bg_motion, caption_safe_zone, cta_single, duplicate_copy,
+                    forbidden_words, identity, limb_motion, limits,
+                    repeat_guard, stt_wpm)
+from .generators import budget, fetch
 from .generators import image as image_generator
 from .generators import text as text_generator
+from .generators import video as video_generator
 from .publishers import media_host, publisher_for, required_env
 from .queue import cli as queue_cli
 from .publishers.base import DeliveryTracker, failure_mode
@@ -63,7 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     brief_show = brief_actions.add_parser("show")
     brief_show.add_argument("--brief", required=True)
 
-    gen = commands.add_parser("gen", help="gen text/image")
+    gen = commands.add_parser("gen", help="gen text/image/video")
     gen_actions = gen.add_subparsers(dest="gen_command", required=True)
     gen_text = gen_actions.add_parser("text")
     gen_text.add_argument("--brief", required=True)
@@ -71,6 +75,14 @@ def build_parser() -> argparse.ArgumentParser:
     gen_image = gen_actions.add_parser("image")
     gen_image.add_argument("--brief", required=True)
     gen_image.add_argument("--dry-run", action="store_true")
+    gen_video = gen_actions.add_parser("video")
+    gen_video.add_argument("--brief", required=True)
+    gen_video.add_argument("--stage", default="all",
+                           choices=["all", *video_generator.STAGES],
+                           help="one stage, or all of them in order")
+    gen_video.add_argument("--dry-run", action="store_true")
+    gen_video.add_argument("--force", action="store_true",
+                           help="re-render a stage that already has its artifact")
 
     gate = commands.add_parser("gate", help="gate run")
     gate_actions = gate.add_subparsers(dest="gate_command", required=True)
@@ -85,6 +97,9 @@ def build_parser() -> argparse.ArgumentParser:
                           help="caption box as x,y,width,height[,label]; repeatable")
     gate_run.add_argument("--item",
                           help="queue id being re-checked, excluded from duplicate_copy")
+    gate_run.add_argument("--media",
+                          help="file for stt_wpm/limb_motion/bg_motion/identity; "
+                               "defaults to the brief's rendered output")
 
     queue_cli.build_parser(commands)
 
@@ -318,8 +333,13 @@ def _brief(config: Config, args: argparse.Namespace) -> int:
 
 IMPLEMENTED_GATES: tuple[str, ...] = ("limits", "forbidden_words", "repeat_guard",
                                       "caption_safe_zone", "cta_single",
-                                      "duplicate_copy")
+                                      "duplicate_copy", "stt_wpm", "limb_motion",
+                                      "bg_motion", "identity")
 TEXT_DEFAULT_GATES: tuple[str, ...] = ("limits", "forbidden_words", "repeat_guard")
+# Gates that measure a rendered file rather than a string. `gate run` reaches
+# for the brief's chosen output; without one there is nothing to measure and the
+# gate is reported as skipped instead of quietly passing.
+MEDIA_GATES: tuple[str, ...] = ("stt_wpm", "limb_motion", "bg_motion", "identity")
 
 
 def _gate_plan(spec: FormatSpec | None, kind: str,
@@ -352,15 +372,56 @@ def _parse_boxes(raw: Sequence[str]) -> list[dict[str, object]]:
     return boxes
 
 
+def _media_gate(gate: str, media_path: Path | None, *, profile: Profile,
+                rules: dict[str, object], home: Path, script_text: str,
+                env: dict[str, str]) -> tuple[str, str]:
+    """Run one file-measuring gate. Returns (status, detail)."""
+    if media_path is None or not media_path.is_file():
+        return terminal.SKIP, "MEDIA_REQUIRED"
+    reports = home / "outputs" / "gates"
+    if gate == "stt_wpm":
+        report = stt_wpm.check(media_path,
+                               transcript=media_path.parent / "gates" / "stt.json",
+                               script_text=script_text, limits=rules,
+                               api_key=env.get("ELEVENLABS_API_KEY", ""))
+    elif gate == "limb_motion":
+        report = limb_motion.check(media_path, limits=rules,
+                                   sheet=media_path.parent / "gates" / "limb.png")
+    elif gate == "bg_motion":
+        # The end card is a held still by design. Measuring it as background
+        # motion reports the design as a defect.
+        held = (float(rules.get("endcard_min_s") or 0.0)
+                if media_path.name == "final.mp4" else 0.0)
+        report = bg_motion.check(media_path, limits=rules, tail_s=held)
+    else:
+        report = identity.check_video(media_path,
+                                      reference=profile.soul.ref_image,
+                                      limits=rules,
+                                      montage=media_path.parent / "gates"
+                                      / "identity.png")
+    reports.mkdir(parents=True, exist_ok=True)
+    return ((terminal.PASS if report.ok else terminal.FAIL),
+            ",".join(report.violations))
+
+
 def _gate_results(config: Config, *, body: str, profile: Profile,
                   kind: str, format_name: str | None,
                   selected: Sequence[str],
                   boxes: Sequence[dict[str, object]] = (),
-                  exclude_id: str | None = None) -> list[tuple[str, str, str]]:
+                  exclude_id: str | None = None,
+                  media_path: Path | None = None,
+                  script_text: str = "") -> list[tuple[str, str, str]]:
     spec = load_format(kind, format_name) if format_name else None
     rules = spec.limits if spec else {}
+    env = load_profile_env(config.home_path, profile.name)
     results: list[tuple[str, str, str]] = []
     for gate in _gate_plan(spec, kind, selected):
+        if gate in MEDIA_GATES:
+            status, detail = _media_gate(gate, media_path, profile=profile,
+                                         rules=rules, home=config.home_path,
+                                         script_text=script_text, env=env)
+            results.append((gate, status, detail))
+            continue
         if gate == "limits":
             report = limits.check(body, rules)
             detail = ",".join(report.violations + report.advisories)
@@ -396,28 +457,64 @@ def _gate_results(config: Config, *, body: str, profile: Profile,
     return results
 
 
+def _gate_media_inputs(config: Config, brief: Brief | None,
+                       explicit: str | None) -> tuple[Path | None, str,
+                                                      list[dict[str, object]]]:
+    """Media file, approved script and caption boxes for the media gates.
+
+    When a brief is given these come from what the video pipeline already
+    produced, so `factory gate run --brief b_...` needs no extra flags: the
+    caption boxes are the ones the renderer drew, not ones typed by hand.
+    """
+    if explicit:
+        path = Path(explicit).expanduser()
+        return (path if path.is_file() else None), "", []
+    if brief is None:
+        return None, "", []
+    workspace = video_generator.Workspace.for_brief(config.home_path, brief.id)
+    found = next((Path(output.path) for output in brief.outputs
+                  if output.path and Path(output.path).is_file()
+                  and Path(output.path).suffix.lower() == ".mp4"), None)
+    if found is None and workspace.final().is_file():
+        found = workspace.final()
+    script_text = ""
+    record = workspace.record().get("script") or {}
+    if isinstance(record, dict):
+        script_text = " ".join((record.get("script") or {}).get("lines") or [])
+    boxes: list[dict[str, object]] = []
+    if workspace.cards_json().is_file():
+        drawn = video_generator.captions.load_cards(
+            workspace.cards_json()).get("boxes")
+        if isinstance(drawn, list):
+            boxes = [entry for entry in drawn if isinstance(entry, dict)]
+    return found, script_text, boxes
+
+
 def _gate(config: Config, args: argparse.Namespace) -> int:
     profile = _profile_of(config, args.profile)
-    boxes: list[dict[str, object]] = []
+    brief: Brief | None = None
     if args.brief:
         brief = load_brief(config.home_path, args.brief)
         profile = _profile_of(config, brief.profile)
         bodies = [(f"output{index}", output.text or "")
-                  for index, output in enumerate(brief.outputs)]
+                  for index, output in enumerate(brief.outputs)] or [("brief", "")]
         format_name = brief.format
         kind = brief.kind
     else:
-        if not args.text:
+        if not args.text and not getattr(args, "media", None):
             raise FactoryError("TEXT_REQUIRED")
-        bodies = [("text", args.text)]
+        bodies = [("text", args.text or "")]
         format_name = args.format
         kind = args.kind
-    boxes = _parse_boxes(getattr(args, "box", []) or [])
+    media_path, script_text, drawn = _gate_media_inputs(
+        config, brief, getattr(args, "media", None))
+    boxes = _parse_boxes(getattr(args, "box", []) or []) or drawn
     failed = False
     for label, body in bodies:
         results = _gate_results(config, body=body, profile=profile, kind=kind,
                                 format_name=format_name, selected=args.gate,
-                                boxes=boxes, exclude_id=getattr(args, "item", None))
+                                boxes=boxes, exclude_id=getattr(args, "item", None),
+                                media_path=media_path, script_text=script_text)
         print(f"[{label}]")
         print(terminal.gate_table(results, lang=config.ui_lang))
         failed = failed or any(status == terminal.FAIL
@@ -432,6 +529,8 @@ def _gen(config: Config, args: argparse.Namespace) -> int:
     spec = load_format(brief.kind, brief.format)
     if args.gen_command == "image":
         return _gen_image(config, args, brief, profile, spec)
+    if args.gen_command == "video":
+        return _gen_video(config, args, brief, profile, spec)
     rules_prefix = rules.prefix_for_kind(brief.kind)
     if profile.writer_rules.strip():
         rules_prefix = f"{rules_prefix}\n\n## Profile rules\n\n{profile.writer_rules}"
@@ -491,9 +590,12 @@ def _image_job(brief: Brief, profile: Profile,
     model = image_generator.pick_model(
         has_soul=bool(soul_id), has_reference=bool(references),
         needs_text=spec.name in {"og", "thumbnail", "cardnews"})
+    aspect = image_generator.snap_aspect(
+        brief.aspect or spec.aspect or "4:5",
+        image_generator.supported_aspects(model))
     return image_generator.ImageJob(
         prompt=prompt, model=model,
-        aspect_ratio=spec.aspect or "4:5",
+        aspect_ratio=aspect,
         references=references,
         soul_id=soul_id if model == image_generator.MODEL_SOUL else None,
         count=brief.count,
@@ -502,28 +604,60 @@ def _image_job(brief: Brief, profile: Profile,
 
 def _gen_image(config: Config, args: argparse.Namespace, brief: Brief,
                profile: Profile, spec: FormatSpec) -> int:
+    """Quote, check the cap, call Higgsfield for real, keep the files."""
     home = config.home_path
     job = _image_job(brief, profile, spec)
     if args.dry_run:
         print(json.dumps(image_generator.plan(job), ensure_ascii=False, indent=2,
                          sort_keys=True))
         return EXIT_OK
-    jobs = image_generator.generate(job)
+    allowance = budget.for_brief(home, ref=brief.id,
+                                 format_cap=spec.credit_cap_per_item,
+                                 brief_cap=brief.budget.credits, track="image")
+    per_run = image_generator.quote(job)
     outputs: list[Output] = []
-    for payload in jobs:
-        for path in image_generator.result_paths(payload):
-            outputs.append(Output(path=path, gates={}, chosen=False))
+    directory = home / "outputs" / brief.id
+    for index in range(job.count):
+        allowance.check(per_run, stage=f"image{index}")
+        single = replace(job, count=1)
+        payload = image_generator.generate(single)[0]
+        urls = image_generator.result_paths(payload)
+        saved = [str(fetch.download(url, directory / f"{spec.name}_{index}_{slot}"))
+                 for slot, url in enumerate(urls)
+                 if str(url).lower().startswith("http")]
         ledger.record(home, track="image", kind=brief.format, model=job.model,
-                      credits=float(spec.credit_cap_per_item),
-                      profile=brief.profile, ref=brief.id,
-                      detail={"job_id": str(payload.get("id") or "")})
+                      credits=per_run, profile=brief.profile, ref=brief.id,
+                      result="ok" if saved else "no_output",
+                      detail={"job_id": str(payload.get("id") or ""),
+                              "files": saved, "quoted_credits": per_run})
+        outputs.extend(Output(path=path, gates={}, chosen=False) for path in saved)
     if not outputs:
         raise FactoryError("NO_IMAGE_OUTPUT", brief.id)
     brief.outputs = outputs
     save_brief(home, brief)
+    print(f"credits: {round(allowance.spent(), 3)} spent of cap "
+          f"{allowance.cap:g} ({per_run:g} per image)")
     print(terminal.candidates([entry.model_dump(mode="json") for entry in outputs],
                               lang=config.ui_lang))
     return EXIT_OK
+
+
+def _gen_video(config: Config, args: argparse.Namespace, brief: Brief,
+               profile: Profile, spec: FormatSpec) -> int:
+    """Run the video stages. The pipeline owns budget, caching and the ledger."""
+    home = config.home_path
+    report = video_generator.run(home=home, brief=brief, profile=profile,
+                                 spec=spec, stages=args.stage,
+                                 dry_run=args.dry_run, force=args.force,
+                                 log=lambda line: print(line, file=sys.stderr))
+    if not args.dry_run:
+        outputs = video_generator.outputs_for(
+            video_generator.Workspace.for_brief(home, brief.id))
+        if outputs:
+            brief.outputs = outputs
+            save_brief(home, brief)
+    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    return EXIT_ERROR if report.get("gate_failures") else EXIT_OK
 
 
 def _publish(config: Config, args: argparse.Namespace) -> int:
