@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Sequence
 
 from .. import i18n
 from ..config import Config, repo_root
@@ -31,6 +33,10 @@ def build_parser(parent: argparse._SubParsersAction) -> None:
     add.add_argument("--public-url", action="append", default=[])
     add.add_argument("--slot", default="next", help="next | YYYY-MM-DDTHH:MM:SSZ")
     add.add_argument("--late-policy", choices=["carry_once", "drop"])
+    add.add_argument("--extra", action="append", default=[], metavar="KEY=VALUE",
+                     help="platform specific field, repeatable: title, tags, privacy "
+                          "(youtube), privacy_level and mode (tiktok), topic_tag and "
+                          "replies (threads), ig_shape and cover_url (instagram)")
 
     listing = actions.add_parser("list")
     listing.add_argument("--day")
@@ -78,6 +84,27 @@ def _resolve_slot(raw: str, *, slots: tuple[str, ...], now: datetime) -> str:
     return utc_stamp(target)
 
 
+EXTRA_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+EXTRA_VALUE_MAX = 4000
+
+
+def _parse_extra(raw: Sequence[str]) -> dict[str, str]:
+    """`key=value` pairs for QueueItem.extra. Keys are constrained so a typo becomes an
+    error here rather than a silently ignored field at publish time."""
+    out: dict[str, str] = {}
+    for entry in raw:
+        key, separator, value = str(entry).partition("=")
+        key = key.strip()
+        if not separator or not EXTRA_KEY.match(key):
+            raise FactoryError("EXTRA_KEY_INVALID", key[:32] or "empty")
+        if len(value) > EXTRA_VALUE_MAX:
+            raise FactoryError("EXTRA_VALUE_TOO_LONG", key)
+        if key in out:
+            raise FactoryError("EXTRA_KEY_DUPLICATE", key)
+        out[key] = value.replace("\\n", "\n")
+    return out
+
+
 def _item_from_brief(args: argparse.Namespace, home: Path) -> tuple[str, str]:
     brief = load_brief(home, args.brief)
     if args.output >= len(brief.outputs):
@@ -120,6 +147,7 @@ def run(config: Config, args: argparse.Namespace) -> int:
             media=media,
             scheduled_at=_resolve_slot(args.slot, slots=tuple(platform.slots), now=now),
             late_policy=args.late_policy or platform.late_policy,
+            extra=_parse_extra(args.extra),
         )
         store.add(item)
         print(translate("queue.added", item_id=item.id, platform=item.platform,

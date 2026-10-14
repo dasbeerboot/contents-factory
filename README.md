@@ -39,6 +39,8 @@ factory gate run (--brief b_... | --text "...") [--format threads_post] [--gate 
                  [--item q_...]                        # duplicate_copy 자기 제외
 factory queue add --platform threads [--brief b_... --output 0] [--text "..."]
                   [--media path --public-url url] [--slot next|2026-10-15T12:00:00Z]
+                  [--extra key=value ...]   # title·tags·privacy·privacy_level·mode·
+                                            # topic_tag·replies·ig_shape·cover_url
 factory queue list [--pending] [--json] | approve | unapprove | arm --reason "..." | disarm | purge
 factory queue reschedule q_... --slot next|<ISO>   # 슬롯 이동 (발행본·미확정 배송은 거부)
 factory queue reopen --item q_... --reason "..."   # unknown phase 해제 (사람 확인 후)

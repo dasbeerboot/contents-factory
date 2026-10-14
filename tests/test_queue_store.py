@@ -228,3 +228,44 @@ def test_cli_purge_rejects_a_bad_before(isolated_home: Path,
     from factory.cli import main
     assert main(["queue", "purge", "--before", "yesterday"]) == 3
     assert "BEFORE_INVALID" in capsys.readouterr().err
+
+
+# ------------------------------------------------------------------ queue add --extra
+
+def test_extra_pairs_become_queue_item_fields() -> None:
+    from factory.queue.cli import _parse_extra
+
+    assert _parse_extra(["privacy=private", "tags=a,b", "title=Hi there"]) == {
+        "privacy": "private", "tags": "a,b", "title": "Hi there"}
+
+
+def test_extra_accepts_an_empty_value_and_escaped_newlines() -> None:
+    from factory.queue.cli import _parse_extra
+
+    assert _parse_extra(["cover_url="]) == {"cover_url": ""}
+    assert _parse_extra([r"replies=one\ntwo"]) == {"replies": "one\ntwo"}
+
+
+@pytest.mark.parametrize("entry, code", [
+    ("novalue", "EXTRA_KEY_INVALID"),
+    ("=x", "EXTRA_KEY_INVALID"),
+    ("Privacy=private", "EXTRA_KEY_INVALID"),
+    ("priv acy=private", "EXTRA_KEY_INVALID"),
+    ("tags=" + "x" * 4001, "EXTRA_VALUE_TOO_LONG"),
+])
+def test_bad_extra_pairs_raise_rather_than_being_dropped(entry: str, code: str) -> None:
+    from factory.errors import FactoryError
+    from factory.queue.cli import _parse_extra
+
+    with pytest.raises(FactoryError) as error:
+        _parse_extra([entry])
+    assert error.value.code == code
+
+
+def test_duplicate_extra_keys_are_refused() -> None:
+    from factory.errors import FactoryError
+    from factory.queue.cli import _parse_extra
+
+    with pytest.raises(FactoryError) as error:
+        _parse_extra(["privacy=private", "privacy=public"])
+    assert error.value.code == "EXTRA_KEY_DUPLICATE"
