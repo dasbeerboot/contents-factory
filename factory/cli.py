@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
 
-from . import i18n, ledger
+from . import i18n, ledger, rules
 from .config import Config, init_home, load_config, repo_root
 from .credentials import load_profile_env
 from .errors import FactoryError
@@ -347,9 +347,11 @@ def _gen(config: Config, args: argparse.Namespace) -> int:
     brief = load_brief(home, args.brief)
     profile = _profile_of(config, brief.profile)
     spec = load_format(brief.kind, brief.format)
+    rules_prefix = rules.prefix_for_kind(brief.kind)
+    if profile.writer_rules.strip():
+        rules_prefix = f"{rules_prefix}\n\n## Profile rules\n\n{profile.writer_rules}"
     system_text = text_generator.build_system(
-        profile.persona, spec.prompt_template or brief.prompt_final,
-        profile.writer_rules)
+        profile.persona, spec.prompt_template or brief.prompt_final, rules_prefix)
     user_text = text_generator.build_user(
         {"content_lang": brief.content_lang,
          "platforms": brief.platforms,
@@ -360,6 +362,7 @@ def _gen(config: Config, args: argparse.Namespace) -> int:
          "answers": [f"{key}={value}" for key, value in sorted(brief.answers.items())]},
         instruction=brief.prompt_final or brief.prompt_draft)
     env = load_profile_env(home, brief.profile)
+    cache_mode = text_generator.cache_state(system_text)
     if args.dry_run:
         generator = text_generator.TextGenerator(env.get("ANTHROPIC_API_KEY") or "dry-run")
         print(json.dumps(generator.dry_run(system_text, user_text), ensure_ascii=False,
@@ -383,7 +386,11 @@ def _gen(config: Config, args: argparse.Namespace) -> int:
                       profile=brief.profile, ref=brief.id,
                       result="ok" if all(status != terminal.FAIL
                                          for _n, status, _d in results)
-                      else "gate_fail")
+                      else "gate_fail",
+                      detail={"cache": cache_mode,
+                              "cache_read_tokens": draft.usage.cache_read_input_tokens,
+                              "prefix_tokens_estimate":
+                                  text_generator.estimate_tokens(system_text)})
     brief.outputs = [Output(text=str(entry["text"]), gates=dict(entry["gates"]),
                             chosen=False) for entry in outputs]
     save_brief(home, brief)

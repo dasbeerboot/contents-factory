@@ -33,6 +33,20 @@ def test_short_prefix_skips_the_cache_marker() -> None:
     assert "cache_control" not in payload["system"][0]
 
 
+def test_system_prefix_order_is_persona_rules_format_schema() -> None:
+    system_text = text_generator.build_system(PERSONA, "FORMAT_BODY", "RULES_BODY")
+    assert system_text.index("# Persona") < system_text.index("RULES_BODY")
+    assert system_text.index("RULES_BODY") < system_text.index("FORMAT_BODY")
+    assert system_text.index("FORMAT_BODY") < system_text.index("Output format (strict)")
+
+
+def test_cjk_prefix_is_not_undercounted() -> None:
+    korean = "규칙" * 800
+    latin = "rule" * 800
+    assert text_generator.estimate_tokens(korean) > text_generator.estimate_tokens(latin)
+    assert text_generator.cache_state(korean) == text_generator.CACHE_EPHEMERAL
+
+
 def test_variable_values_stay_out_of_the_system_block() -> None:
     system_text = text_generator.build_system(PERSONA, "format body")
     user_text = text_generator.build_user(
@@ -110,9 +124,13 @@ def test_dry_run_reports_prefix_estimate() -> None:
     generator = text_generator.TextGenerator("k")
     system_text = text_generator.build_system(PERSONA, "format body")
     report = generator.dry_run(system_text, "user")
-    assert report["cache_control"] == "ephemeral"
+    assert report["cache"] == text_generator.CACHE_EPHEMERAL
+    assert report["cache_minimum_tokens"] == 1024
     assert report["system_prefix_tokens_estimate"] > 1024
     assert report["payload"]["messages"][0]["content"] == "user"
+    thin = generator.dry_run("tiny system", "user")
+    assert thin["cache"] == text_generator.CACHE_SKIPPED
+    assert "cache_control" not in thin["payload"]["system"][0]
 
 
 def test_generator_requires_key() -> None:

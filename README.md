@@ -122,11 +122,17 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
 
 ## 프롬프트 캐싱 / Prompt caching
 
-`workspace/LLM-API-캐싱-규칙.md` 준수. system 블록(persona + format + rules + 출력 스키마)이
-불변 프리픽스이고 날짜·슬롯·앵글 같은 가변값은 전부 user 메시지로 간다. sonnet-5의 최소
-프리픽스는 1,024토큰이라 **persona가 짧으면 마커가 조용히 무시된다** — `factory gen text
---dry-run`이 `cache_control`과 프리픽스 추정 토큰을 찍어주니 거기서 확인한다. 2회째 호출에
-`cache_read_input_tokens`가 0이면 생성기가 WARN을 남긴다.
+`workspace/LLM-API-캐싱-규칙.md` + P0-SPEC §10 결정4 준수.
+
+system 프리픽스 = `persona.md` → `docs/rules/<kind>-rules.md`의 절차·게이트·금지 절 →
+포맷 `prompt_template` → 출력 스키마 순서다. 안정적인 것이 앞이라 포맷을 바꿔도 뒤쪽만
+무효화된다. 날짜·슬롯·앵글 같은 가변값은 전부 user 메시지로 간다.
+
+**패딩은 하지 않는다.** sonnet-5 최소 프리픽스는 1,024토큰이고, 미달이면 마커를 아예 안
+붙이고 원장에 `cache:skipped`를 남긴다(마커만 달면 조용히 무시되므로 기록이 남는 쪽이 낫다).
+`factory gen text --dry-run`이 `cache`와 프리픽스 추정 토큰을 찍는다. 추정은 CJK를 글자당
+0.7토큰, 라틴을 0.27토큰으로 센다. 2회째 호출에 `cache_read_input_tokens`가 0이면 생성기가
+WARN을 남긴다.
 
 ## 레이아웃 / Layout
 

@@ -1,8 +1,12 @@
 """Text generator, ported from saju-threads scripts/persona_writer.py.
 
-Prompt caching per workspace/LLM-API-캐싱-규칙.md:
-  - the system block is an immutable prefix (persona, format prompt, rules, output schema)
-    and carries cache_control ephemeral on its last block
+Prompt caching per workspace/LLM-API-캐싱-규칙.md and P0-SPEC §10 decision 4:
+  - the system prefix is persona.md, then the relevant docs/rules sections, then the
+    format prompt_template, then the output schema, in that order, and carries
+    cache_control ephemeral on its last block
+  - no padding: when the prefix is under the model minimum the marker is left off
+    entirely (a marker below the minimum is silently ignored anyway) and the caller
+    records cache:skipped in the ledger
   - every variable value (date, slot, angle, recent posts, retry notes) lives in the user
     message, never in the system block
   - the payload is serialized with sort_keys so the prefix is byte stable across calls
@@ -12,6 +16,7 @@ Prompt caching per workspace/LLM-API-캐싱-규칙.md:
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -25,7 +30,11 @@ DEFAULT_MODEL = "claude-sonnet-5"
 MAX_TOKENS = 2400
 API_TIMEOUT_SECONDS = 120
 MIN_CACHE_PREFIX_TOKENS = 1024
-TOKENS_PER_CHAR = 0.27
+# Rough tokens per character. Latin text runs about 0.27; CJK is far denser, close to
+# one token per character, so counting it at 0.27 would badly undercount a Korean prefix.
+TOKENS_PER_LATIN_CHAR = 0.27
+TOKENS_PER_CJK_CHAR = 0.7
+CJK = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]")
 
 OUTPUT_SCHEMA = """
 ## Output format (strict)
@@ -79,14 +88,27 @@ class Draft:
 
 def build_system(persona: str, format_prompt: str, rules: str = "",
                  schema: str = OUTPUT_SCHEMA) -> str:
-    """Immutable prefix. Nothing time varying or per request may enter this string."""
+    """Immutable prefix. Nothing time varying or per request may enter this string.
+
+    Order is fixed by P0-SPEC §10: persona, rules, format, schema. Most stable first so a
+    format swap invalidates less of the cached prefix than a persona change would.
+    """
     parts = ["# Persona\n\n" + persona.strip()]
-    if format_prompt.strip():
-        parts.append("# Format\n\n" + format_prompt.strip())
     if rules.strip():
         parts.append("# Rules\n\n" + rules.strip())
+    if format_prompt.strip():
+        parts.append("# Format\n\n" + format_prompt.strip())
     parts.append(schema.strip())
     return "\n\n---\n\n".join(parts)
+
+
+CACHE_EPHEMERAL = "ephemeral"
+CACHE_SKIPPED = "skipped"
+
+
+def cache_state(system_text: str, *, minimum: int = MIN_CACHE_PREFIX_TOKENS) -> str:
+    """ephemeral when the prefix clears the model minimum, skipped otherwise."""
+    return CACHE_EPHEMERAL if cache_eligible(system_text, minimum=minimum) else CACHE_SKIPPED
 
 
 def build_user(values: dict[str, Any], *, instruction: str = "",
@@ -110,7 +132,9 @@ def build_user(values: dict[str, Any], *, instruction: str = "",
 
 
 def estimate_tokens(text: str) -> int:
-    return int(len(text) * TOKENS_PER_CHAR)
+    body = str(text or "")
+    dense = len(CJK.findall(body))
+    return int(dense * TOKENS_PER_CJK_CHAR + (len(body) - dense) * TOKENS_PER_LATIN_CHAR)
 
 
 def cache_eligible(system_text: str, *,
@@ -201,7 +225,8 @@ class TextGenerator:
     def dry_run(self, system_text: str, user_text: str) -> dict[str, Any]:
         payload = self.payload(system_text, user_text)
         return {"url": API_URL, "model": self.model,
-                "cache_control": "ephemeral" if cache_eligible(system_text) else "omitted",
+                "cache": cache_state(system_text),
+                "cache_minimum_tokens": MIN_CACHE_PREFIX_TOKENS,
                 "system_prefix_tokens_estimate": estimate_tokens(system_text),
                 "payload": payload}
 

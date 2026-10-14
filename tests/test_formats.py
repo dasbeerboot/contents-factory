@@ -191,3 +191,43 @@ def test_paragraph_cap(shipped: None) -> None:
 def test_formats_env_override_still_wins(isolated_home: Path) -> None:
     assert os.environ[FORMATS_ENV].endswith("fixtures/formats")
     assert catalogue("text") == {"text": ["threads_post"]}
+
+
+def test_rules_prefix_sections(shipped: None) -> None:
+    """The system prefix pulls whole sections from docs/rules, never reflowed."""
+    from factory import rules
+    assert rules.section_names("writing") == ["목적", "절차", "게이트(PASS·FAIL 기준)",
+                                              "금지", "예시"]
+    prefix = rules.prefix_for_kind("text")
+    assert "## 절차" in prefix
+    assert "## 금지" in prefix
+    assert "## 목적" not in prefix
+    assert "## 예시" not in prefix
+    document = rules.read_document("writing")
+    body = rules.sections(document)["금지"]
+    assert body in prefix
+
+
+def test_rules_prefix_is_byte_stable(shipped: None) -> None:
+    from factory import rules
+    assert rules.prefix_for_kind("text") == rules.prefix_for_kind("text")
+
+
+def test_rules_prefix_per_kind(shipped: None) -> None:
+    from factory import rules
+    assert rules.prefix_for_kind("image") != rules.prefix_for_kind("video")
+    assert rules.prefix_for_kind("audio") == ""
+
+
+def test_shipped_prefix_clears_the_cache_minimum(shipped: None) -> None:
+    """persona + writing-rules + prompt_template must reach 1024 tokens without padding."""
+    from factory import rules
+    from factory.generators import text as generator
+    from factory.spec.profile import load_profile
+    profile = load_profile("_example", home=Path("/nonexistent"),
+                           repo=Path(__file__).resolve().parent.parent)
+    system_text = generator.build_system(
+        profile.persona, load_format("text", "threads_post").prompt_template,
+        rules.prefix_for_kind("text"))
+    assert generator.estimate_tokens(system_text) >= 1024
+    assert generator.cache_state(system_text) == generator.CACHE_EPHEMERAL
