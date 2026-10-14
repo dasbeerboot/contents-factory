@@ -79,16 +79,26 @@ class SafeZoneReport:
                 "frame": list(self.frame), "boxes": self.boxes}
 
 
-def zone_from_limits(limits: dict[str, Any] | None) -> Zone:
-    """Read safe_zone_px / center_safe_zone_px out of a format yaml limits block."""
-    for key in ("safe_zone_px", "center_safe_zone_px"):
+ZONE_KEYS = ("safe_zone_px", "center_safe_zone_px")
+
+
+def declared_zone(limits: dict[str, Any] | None) -> dict[str, Any] | None:
+    for key in ZONE_KEYS:
         raw = (limits or {}).get(key)
         if isinstance(raw, dict) and {"x_min", "x_max", "y_min", "y_max"} <= set(raw):
-            width = int((limits or {}).get("max_text_width_px") or MAX_TEXT_WIDTH)
-            return Zone(x_min=int(raw["x_min"]), x_max=int(raw["x_max"]),
-                        y_min=int(raw["y_min"]), y_max=int(raw["y_max"]),
-                        max_text_width=width)
-    return Zone()
+            return raw
+    return None
+
+
+def zone_from_limits(limits: dict[str, Any] | None) -> Zone:
+    """Read safe_zone_px / center_safe_zone_px out of a format yaml limits block."""
+    raw = declared_zone(limits)
+    if raw is None:
+        return Zone()
+    width = int((limits or {}).get("max_text_width_px") or MAX_TEXT_WIDTH)
+    return Zone(x_min=int(raw["x_min"]), x_max=int(raw["x_max"]),
+                y_min=int(raw["y_min"]), y_max=int(raw["y_max"]),
+                max_text_width=width)
 
 
 def frame_from_limits(limits: dict[str, Any] | None) -> tuple[int, int]:
@@ -147,8 +157,13 @@ def check(boxes: Sequence[Any], *, limits: dict[str, Any] | None = None,
     """Judge every text box. An empty box list is a FAIL: nothing to verify is not a pass."""
     resolved_frame = frame or frame_from_limits(limits)
     base = zone or zone_from_limits(limits)
-    scaled = base if resolved_frame == (FRAME_WIDTH, FRAME_HEIGHT) else base.scaled(
-        resolved_frame)
+    # Scaling exists to carry the measured 1080x1920 defaults onto another frame size.
+    # A zone the caller passed in, or one the format yaml states in its own pixels, is
+    # already in that frame's coordinates: rescaling it would silently shrink the zone
+    # (a 1080x1350 card would get the 9:16 zone multiplied by 0.70 on the y axis).
+    explicit = zone is not None or declared_zone(limits) is not None
+    scaled = base if explicit or resolved_frame == (FRAME_WIDTH, FRAME_HEIGHT) \
+        else base.scaled(resolved_frame)
     try:
         parsed = parse_boxes(boxes)
     except ValueError as error:

@@ -27,7 +27,13 @@ from ..errors import FactoryError, scrub
 API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-sonnet-5"
-MAX_TOKENS = 2400
+# Sonnet 5 runs adaptive thinking whenever `thinking` is omitted, and its thinking display
+# defaults to "omitted", so the response carries an empty thinking block plus the answer.
+# Thinking tokens come out of max_tokens: at 2400 a long deliberation ate the whole budget
+# and the response arrived with no text block at all (measured 2026-10-14). 8000 leaves
+# room for the deliberation and a 500 character post. Do not send budget_tokens, it is a
+# 400 on this model.
+MAX_TOKENS = 8000
 API_TIMEOUT_SECONDS = 120
 MIN_CACHE_PREFIX_TOKENS = 1024
 # Rough tokens per character. Latin text runs about 0.27; CJK is far denser, close to
@@ -217,8 +223,17 @@ class TextGenerator:
             if isinstance(block, dict) and block.get("type") == "text" and block.get("text"):
                 text = str(block["text"])
                 break
+        stop_reason = str(response.get("stop_reason") or "")
         if not text:
-            raise FactoryError("EMPTY_CONTENT")
+            # Separate codes on purpose: truncation is a max_tokens problem, an empty
+            # answer is a prompt problem, and they need different fixes.
+            if stop_reason == "max_tokens":
+                raise FactoryError("OUTPUT_TRUNCATED", f"max_tokens={self.max_tokens}")
+            if stop_reason == "refusal":
+                raise FactoryError("OUTPUT_REFUSED")
+            raise FactoryError("EMPTY_CONTENT", stop_reason[:32])
+        if stop_reason == "max_tokens":
+            self._log(f"WARN output hit max_tokens={self.max_tokens}, the draft is cut")
         body, replies, hypothesis = parse_draft(text)
         return Draft(text=body, replies=replies, hypothesis=hypothesis, usage=usage, raw=text)
 

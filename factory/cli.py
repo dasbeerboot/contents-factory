@@ -20,7 +20,7 @@ from .gates import (caption_safe_zone, cta_single, duplicate_copy,
                     forbidden_words, limits, repeat_guard)
 from .generators import image as image_generator
 from .generators import text as text_generator
-from .publishers import publisher_for, required_env
+from .publishers import media_host, publisher_for, required_env
 from .queue import cli as queue_cli
 from .publishers.base import DeliveryTracker, failure_mode
 from .queue.store import QueueStore, StoreTracker
@@ -106,6 +106,16 @@ def build_parser() -> argparse.ArgumentParser:
     schedule_tick = schedule_actions.add_parser("tick")
     schedule_tick.add_argument("--dry-run", action="store_true")
 
+    media = commands.add_parser("media", help="media host: upload local media, get a URL")
+    media_actions = media.add_subparsers(dest="media_command", required=True)
+    media_host_parser = media_actions.add_parser(
+        "host", help="upload a queue item's media and record the public URL on it")
+    media_host_parser.add_argument("--item", required=True)
+    media_host_parser.add_argument("--index", type=int, default=0,
+                                   help="which media entry, default the first")
+    media_host_parser.add_argument("--dry-run", action="store_true",
+                                   help="print the request plan without uploading")
+
     auth = commands.add_parser("auth", help="connect a platform account by OAuth")
     auth_actions = auth.add_subparsers(dest="auth_command", required=True)
     for platform in ("threads", "instagram"):
@@ -181,6 +191,7 @@ def dispatch(config: Config, args: argparse.Namespace) -> int:
         "gate": _gate,
         "queue": queue_cli.run,
         "publish": _publish,
+        "media": _media,
         "auth": _auth,
         "schedule": _schedule,
         "token": _token,
@@ -550,6 +561,32 @@ def _publish(config: Config, args: argparse.Namespace) -> int:
                   profile=item.profile, ref=item.id,
                   result="ok" if result.ok else result.code)
     return EXIT_OK if result.ok else EXIT_ERROR
+
+
+def _media(config: Config, args: argparse.Namespace) -> int:
+    """Upload one queue item's media so the platform has a URL it can fetch.
+
+    Threads, Instagram and the TikTok import route all pull media server side, so a local
+    path cannot be posted. This is the only writer of `media[].public_url`.
+    """
+    if args.media_command != "host":
+        raise FactoryError("MEDIA_COMMAND_UNKNOWN", str(args.media_command)[:32])
+    home = config.home_path
+    store = QueueStore(home)
+    item = store.get(args.item)
+    if not 0 <= args.index < len(item.media):
+        raise FactoryError("MEDIA_INDEX_INVALID", str(args.index))
+    entry = item.media[args.index]
+    env = load_profile_env(home, item.profile)
+    if args.dry_run:
+        plan = media_host.plan(entry, profile=item.profile, item_id=item.id, env=env)
+        print(json.dumps(plan.as_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        return EXIT_OK
+    public_url = media_host.upload(entry, profile=item.profile, item_id=item.id, env=env)
+    updated = store.set_media_url(item.id, args.index, public_url)
+    print(i18n.get("media.hosted", config.ui_lang, item_id=updated.id,
+                   index=args.index, url=public_url))
+    return EXIT_OK
 
 
 def _announce_consent(url: str, *, translate: i18n.Translator, open_browser: bool) -> None:

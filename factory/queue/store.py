@@ -179,6 +179,24 @@ class QueueStore:
             return item
         return self.mutate(item_id, change)
 
+    def set_media_url(self, item_id: str, index: int, public_url: str) -> QueueItem:
+        """Record where one media entry got hosted. The platforms fetch media server side,
+        so this URL is what actually gets posted; it is written here and nowhere else."""
+        def change(item: QueueItem) -> QueueItem:
+            if item.published:
+                raise FactoryError("QUEUE_ALREADY_PUBLISHED", item_id)
+            if item.phase != "ready":
+                # The fingerprint covers media urls, so swapping one mid delivery would
+                # trip DELIVERY_CONTENT_CHANGED later instead of here.
+                raise FactoryError("DELIVERY_IN_PROGRESS", item.phase)
+            if not 0 <= index < len(item.media):
+                raise FactoryError("MEDIA_INDEX_INVALID", str(index))
+            if not str(public_url).startswith("https://"):
+                raise FactoryError("MEDIA_PUBLIC_URL_INVALID")
+            item.media[index].public_url = public_url
+            return item
+        return self.mutate(item_id, change)
+
     def mark_published(self, item_id: str, published_id: str | None,
                        *, now: datetime | None = None) -> QueueItem:
         def change(item: QueueItem) -> QueueItem:

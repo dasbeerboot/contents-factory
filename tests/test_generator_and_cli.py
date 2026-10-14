@@ -342,3 +342,64 @@ def test_cli_schedule_status_lists_upcoming(isolated_home: Path,
     out = capsys.readouterr().out
     assert "next seven days" in out.lower()
     assert item.id in out
+
+
+# --------------------------------------------- thinking eats max_tokens (2026-10-14)
+
+def _response(content: list[dict[str, object]], stop_reason: str) -> dict[str, object]:
+    return {"content": content, "stop_reason": stop_reason,
+            "usage": {"input_tokens": 10, "output_tokens": 8000}}
+
+
+def test_a_thinking_only_response_reports_truncation_not_emptiness() -> None:
+    """Sonnet 5 thinks by default and thinking tokens come out of max_tokens. A budget
+    that runs out mid-deliberation returns an empty thinking block and no text."""
+    from factory.generators import text as text_generator
+
+    generator = text_generator.TextGenerator(
+        "key", transport=lambda payload, key: _response(
+            [{"type": "thinking", "thinking": ""}], "max_tokens"))
+    with pytest.raises(FactoryError) as error:
+        generator.generate("system", "user")
+    assert error.value.code == "OUTPUT_TRUNCATED"
+    assert "max_tokens=" in error.value.detail
+
+
+def test_a_refusal_is_its_own_code() -> None:
+    from factory.generators import text as text_generator
+
+    generator = text_generator.TextGenerator(
+        "key", transport=lambda payload, key: _response([], "refusal"))
+    with pytest.raises(FactoryError) as error:
+        generator.generate("system", "user")
+    assert error.value.code == "OUTPUT_REFUSED"
+
+
+def test_an_empty_answer_that_ended_normally_stays_empty_content() -> None:
+    from factory.generators import text as text_generator
+
+    generator = text_generator.TextGenerator(
+        "key", transport=lambda payload, key: _response([], "end_turn"))
+    with pytest.raises(FactoryError) as error:
+        generator.generate("system", "user")
+    assert error.value.code == "EMPTY_CONTENT"
+
+
+def test_a_thinking_block_before_the_answer_is_skipped_not_fatal() -> None:
+    from factory.generators import text as text_generator
+
+    body = '{"text": "the post", "replies": [], "hypothesis": "h"}'
+    generator = text_generator.TextGenerator(
+        "key", transport=lambda payload, key: _response(
+            [{"type": "thinking", "thinking": ""}, {"type": "text", "text": body}],
+            "end_turn"))
+    assert generator.generate("system", "user").text == "the post"
+
+
+def test_the_payload_never_sends_budget_tokens() -> None:
+    """budget_tokens is a 400 on sonnet-5; adaptive thinking replaced it."""
+    from factory.generators import text as text_generator
+
+    payload = text_generator.build_payload("system", "user")
+    assert "thinking" not in payload
+    assert payload["max_tokens"] >= 8000

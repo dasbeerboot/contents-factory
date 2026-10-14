@@ -52,7 +52,11 @@ def plan(media: Media, *, profile: str, item_id: str, env: dict[str, str]) -> Ho
     return HostPlan(
         method="POST",
         url=f"{base}/storage/v1/object/{store}/{target}",
-        headers={"authorization": redacted("SUPABASE_SERVICE_ROLE_KEY"),
+        # Supabase storage wants the key twice: `apikey` routes the request to the
+        # project and `Authorization` authorises it. With only the bearer header the
+        # upload comes back HTTP 400 (measured 2026-10-14).
+        headers={"apikey": redacted("SUPABASE_SERVICE_ROLE_KEY"),
+                 "authorization": redacted("SUPABASE_SERVICE_ROLE_KEY"),
                  "content-type": content_type, "x-upsert": "true"},
         file=str(path),
         public_url=f"{base}/storage/v1/object/public/{store}/{target}")
@@ -69,7 +73,8 @@ def upload(media: Media, *, profile: str, item_id: str, env: dict[str, str]) -> 
     content_type = prepared.headers["content-type"]
     request = urllib.request.Request(
         prepared.url, data=path.read_bytes(), method="POST",
-        headers={"Authorization": f"Bearer {env['SUPABASE_SERVICE_ROLE_KEY']}",
+        headers={"apikey": env["SUPABASE_SERVICE_ROLE_KEY"],
+                 "Authorization": f"Bearer {env['SUPABASE_SERVICE_ROLE_KEY']}",
                  "Content-Type": content_type, "x-upsert": "true"})
     try:
         with urllib.request.urlopen(request, timeout=UPLOAD_TIMEOUT_SECONDS) as response:

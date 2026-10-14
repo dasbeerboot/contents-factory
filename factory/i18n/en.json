@@ -62,5 +62,6 @@
   "auth.paste.prompt": "Paste the full redirected URL (hidden): ",
   "auth.warning": "warning: {detail}",
   "auth.saved": "{platform} connected: @{username} (profile {profile}, exchange route {route}). Keys written: {keys}. No value is ever printed.",
-  "auth.instagram.manual": "The instagram exchange is not automated yet. These steps are still manual:"
+  "auth.instagram.manual": "The instagram exchange is not automated yet. These steps are still manual:",
+  "media.hosted": "{item_id} media {index} hosted. public_url={url}"
 }

@@ -62,5 +62,6 @@
   "auth.paste.prompt": "리다이렉트된 전체 URL 붙여넣기 (화면에 안 보임): ",
   "auth.warning": "경고: {detail}",
   "auth.saved": "{platform} 연결 완료: @{username} (프로필 {profile}, 교환 경로 {route}). 기록한 키: {keys}. 값은 어디에도 출력하지 않는다.",
-  "auth.instagram.manual": "instagram 교환은 아직 자동이 아니다. 남은 단계는 사람이 한다:"
+  "auth.instagram.manual": "instagram 교환은 아직 자동이 아니다. 남은 단계는 사람이 한다:",
+  "media.hosted": "{item_id} 미디어 {index} 호스팅 완료. public_url={url}"
 }

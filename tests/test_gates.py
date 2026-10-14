@@ -321,3 +321,43 @@ def test_config_merges_star_and_profile_corpus_entries() -> None:
         == ["all.jsonl", "one.jsonl"]
     assert [path.name for path in config.corpus_paths("other")] == ["all.jsonl"]
     assert all(path.is_absolute() for path in config.corpus_paths("someone"))
+
+
+# ------------------------------------------- safe zone: declared zones are not rescaled
+
+CARD_LIMITS = {"width_px": 1080, "height_px": 1350,
+               "safe_zone_px": {"x_min": 96, "x_max": 984, "y_min": 96, "y_max": 1254},
+               "max_text_width_px": 888}
+
+
+def test_a_declared_zone_is_used_in_its_own_pixels() -> None:
+    """Scaling exists for the 1080x1920 defaults. Applying it to a zone the yaml states
+    in its own frame's pixels would shrink a 4:5 card's zone by 0.70 on the y axis."""
+    report = caption_safe_zone.check([{"x": 96, "y": 472, "width": 851, "height": 345,
+                                       "label": "headline"}], limits=CARD_LIMITS)
+    assert report.ok, report.violations
+    assert report.zone == {"x_min": 96, "x_max": 984, "y_min": 96, "y_max": 1254,
+                           "max_text_width": 888}
+
+
+def test_a_declared_zone_still_catches_a_box_outside_it() -> None:
+    report = caption_safe_zone.check([{"x": 40, "y": 472, "width": 1000, "height": 345,
+                                       "label": "headline"}], limits=CARD_LIMITS)
+    assert not report.ok
+    assert any("LEFT_OUT" in entry for entry in report.violations)
+    assert any("WIDTH_OVER" in entry for entry in report.violations)
+
+
+def test_the_default_zone_still_scales_to_another_frame() -> None:
+    report = caption_safe_zone.check([{"x": 10, "y": 10, "width": 10, "height": 10}],
+                                     limits={"width_px": 1080, "height_px": 1350})
+    assert report.zone["y_max"] == int(1430 * 1350 / 1920)
+
+
+def test_an_explicit_zone_argument_is_never_rescaled() -> None:
+    zone = caption_safe_zone.Zone(x_min=0, x_max=1080, y_min=0, y_max=1350,
+                                  max_text_width=1080)
+    report = caption_safe_zone.check([{"x": 0, "y": 0, "width": 1080, "height": 1350}],
+                                     limits={"width_px": 1080, "height_px": 1350},
+                                     zone=zone)
+    assert report.ok, report.violations
