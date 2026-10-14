@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -301,8 +303,8 @@ def test_naver_node_dry_run_plan(isolated_home: Path) -> None:
     assert plan["editor_url"] == "https://blog.naver.com/examplelog?Redirect=Write&"
     assert plan["reserved_stamp"] == "2026.10.20 21:00"
     assert plan["component_counts"]["documentTitle"] == 1
-    assert plan["steps"] == ["ensure_editor", "inject_document", "validate_editor",
-                             "publish_panel"]
+    assert plan["steps"] == ["start_cors_server", "ensure_editor", "inject_document",
+                             "validate_editor", "publish_panel"]
 
 
 def test_naver_node_rejects_bad_publish_minute(isolated_home: Path) -> None:
@@ -314,3 +316,59 @@ def test_naver_node_rejects_bad_publish_minute(isolated_home: Path) -> None:
            "markdown": "## Title\nt\n\n## Body\nb\n\n## Tags\n#a\n"}
     result = publisher._invoke(job, dry_run=True)
     assert result == {"ok": False, "code": "PUBLISH_MINUTE_NOT_TEN"}
+
+
+NAVER_VENDOR = Path(__file__).resolve().parent.parent / "factory" / "publishers" / "naver"
+
+
+def test_naver_cors_server_serves_the_bundle(isolated_home: Path) -> None:
+    """The document reaches the editor over loopback, so size is not capped by the REPL."""
+    if shutil.which("node") is None:
+        pytest.skip("node is not installed")
+    build = isolated_home / "state" / "naver" / "build"
+    build.mkdir(parents=True, exist_ok=True)
+    body = json.dumps({"document": {"components": [{"@ctype": "text"}] * 500}})
+    (build / "probe.json").write_text(body, encoding="utf-8")
+    script = f'''
+      import {{ startCorsServer }} from {json.dumps(str(NAVER_VENDOR / "cors_server.mjs"))};
+      const cors = await startCorsServer({{ buildRoot: {json.dumps(str(build))} }});
+      const ok = await fetch(`${{cors.origin}}/build/probe.json`);
+      const payload = await ok.json();
+      const outside = await fetch(`${{cors.origin}}/build/../../../etc/hosts`);
+      const missing = await fetch(`${{cors.origin}}/build/nope.json`);
+      console.log(JSON.stringify({{
+        port_assigned: cors.port > 0,
+        status: ok.status,
+        cors: ok.headers.get("access-control-allow-origin"),
+        components: payload.document.components.length,
+        traversal: outside.status,
+        missing: missing.status,
+      }}));
+      await cors.close();
+    '''
+    completed = subprocess.run(["node", "--input-type=module", "-e", script],
+                               capture_output=True, text=True, timeout=60, check=False)
+    assert completed.returncode == 0, completed.stderr[-400:]
+    result = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert result["port_assigned"] is True
+    assert result["status"] == 200
+    assert result["cors"] == "*"
+    assert result["components"] == 500
+    assert result["traversal"] in (403, 404)
+    assert result["missing"] == 404
+
+
+def test_naver_long_document_is_no_longer_capped(isolated_home: Path) -> None:
+    if shutil.which("node") is None:
+        pytest.skip("node is not installed")
+    publisher = NaverBlogPublisher(isolated_home, env=NAVER_ENV)
+    body = "\n\n".join(f"Paragraph {index} carries enough words to grow the bundle."
+                       for index in range(900))
+    job = {"blogId": "examplelog", "title": "Long post", "category": "Notes",
+           "tags": ["a"], "publishAt": "2026-10-20T21:00",
+           "markdown": f"## Title\nLong post\n\n## Body\n{body}\n\n## Tags\n#a\n"}
+    result = publisher._invoke(job, dry_run=True)
+    assert result["ok"] is True
+    assert result["plan"]["document_bytes"] > 90 * 1024
+    assert result["plan"]["transport"] == "loopback_cors"
+    assert result["plan"]["steps"][0] == "start_cors_server"

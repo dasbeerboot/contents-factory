@@ -9,17 +9,27 @@
 // job.json: { blogId, title, category, tags[], publishAt: "YYYY-MM-DDTHH:MM" (KST),
 //             markdown | markdownPath, dryRun? }
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import path from "node:path";
 import process from "node:process";
 
 import { parseMarkdown } from "./md_to_document.mjs";
 import { componentCounts } from "./document.mjs";
 import { runAsideJson } from "./aside.mjs";
+import { startCorsServer } from "./cors_server.mjs";
 
 const RESULT_MARKER = "__FACTORY_NAVER_RESULT__";
 const MAIN_RESULT_ATTRIBUTE_TOKEN = "__FACTORY_MAIN_RESULT_ATTRIBUTE__";
 const OWNER_KEY = "__factoryNaverOwner";
 const MAX_PROGRAM_BYTES = 90 * 1024;
+// The document never travels through the aside program: it is served over loopback and
+// fetched by the editor tab, so post length is bounded by the browser, not by the REPL.
+const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024;
+const FACTORY_HOME = process.env.FACTORY_HOME
+  ? path.resolve(process.env.FACTORY_HOME.replace(/^~(?=$|\/)/, homedir()))
+  : path.join(homedir(), ".contents-factory");
+const BUILD_ROOT = path.join(FACTORY_HOME, "state", "naver", "build");
 
 let runContext = null;
 
@@ -288,9 +298,11 @@ async function ensureEditor() {
   `);
 }
 
-async function injectDocument(documentModel) {
+async function injectDocument(bundleUrl) {
   const code = mainWorldCode(String.raw`
-    const bundle = BUNDLE_JSON;
+    const response = await fetch(BUNDLE_URL, { cache: "no-store" });
+    if (!response.ok) throw new Error("BUILD_FETCH_FAILED");
+    const bundle = await response.json();
     const editor = window.SmartEditor?._editors?.blogpc001;
     if (!editor?._documentService?.setDocumentData) throw new Error("EDITOR_API_MISSING");
     // 현재 문서의 id·di 는 유지하고 components 만 교체한다 (빌드본 id 주입은 에디터 스토어를 깨뜨린다).
@@ -305,7 +317,7 @@ async function injectDocument(documentModel) {
     document.documentElement.setAttribute("data-factory-document-id", String(after.document.id));
     sessionStorage.setItem(OWNER_KEY_TOKEN, JSON.stringify({ token: RUN_TOKEN_VALUE, run: RUN_TOKEN_VALUE, documentId: String(after.document.id) }));
     return { componentCount: applied };
-  `).replace("BUNDLE_JSON", JSON.stringify(documentModel))
+  `).replace("BUNDLE_URL", JSON.stringify(bundleUrl))
     .replaceAll("OWNER_KEY_TOKEN", JSON.stringify(OWNER_KEY))
     .replaceAll("RUN_TOKEN_VALUE", JSON.stringify(runContext.token));
   return runAsideStep(`
@@ -500,6 +512,10 @@ export async function main(argv) {
     return { ok: false, code: errorCode(error, "JOB_INVALID") };
   }
   const counts = componentCounts(documentModel);
+  const bundleBody = `${JSON.stringify(documentModel)}\n`;
+  if (Buffer.byteLength(bundleBody, "utf8") > MAX_DOCUMENT_BYTES) {
+    return { ok: false, code: "DOCUMENT_TOO_LARGE" };
+  }
 
   if (options.dry || job.dryRun) {
     return {
@@ -515,15 +531,24 @@ export async function main(argv) {
         publish_at_epoch_ms: spec.publishAt.epochMs,
         reserved_stamp: `${spec.publishAt.year}.${spec.publishAt.month}.${spec.publishAt.day} ${spec.publishAt.hour}:${spec.publishAt.minute}`,
         component_counts: counts,
-        steps: ["ensure_editor", "inject_document", "validate_editor", "publish_panel"],
+        document_bytes: Buffer.byteLength(bundleBody, "utf8"),
+        transport: "loopback_cors",
+        steps: ["start_cors_server", "ensure_editor", "inject_document",
+                "validate_editor", "publish_panel"],
       },
     };
   }
 
   runContext = { token: randomUUID().replaceAll("-", ""), blogId: spec.blogId };
+  const bundleName = `${runContext.token}.json`;
+  const bundlePath = path.join(BUILD_ROOT, bundleName);
+  let cors = null;
   try {
+    await mkdir(BUILD_ROOT, { recursive: true });
+    await writeFile(bundlePath, bundleBody, { encoding: "utf8", mode: 0o600 });
+    cors = await startCorsServer({ buildRoot: BUILD_ROOT });
     await ensureEditor();
-    await injectDocument(documentModel);
+    await injectDocument(`${cors.origin}/build/${bundleName}`);
     await validateEditor(counts);
     const result = await runAsideStep(publishPanelProgram({
       category: spec.category,
@@ -537,6 +562,9 @@ export async function main(argv) {
     const sessionCodes = ["HOST_TAB_MISSING", "EDITOR_TAB_MISSING", "EDITOR_FRAME_TIMEOUT",
                           "ASIDE_UNAVAILABLE", "ASIDE_RESULT_MISSING", "ASIDE_TIMEOUT"];
     return { ok: false, code: sessionCodes.includes(code) ? "NAVER_SESSION_MISSING" : code };
+  } finally {
+    if (cors) await cors.close().catch(() => {});
+    await rm(bundlePath, { force: true }).catch(() => {});
   }
 }
 
