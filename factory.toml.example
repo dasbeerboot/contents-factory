@@ -1,0 +1,5 @@
+ui_lang = "ko"
+content_lang = "en"
+default_profile = "_example"
+home = "~/.contents-factory"
+review = "terminal"
