@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 
 from ..errors import FactoryError
 from ..spec.queue import QueueItem
-from .base import Publisher, PublishRequest
+from .base import DeliveryTracker, Publisher, PublishRequest
 
 VENDOR_DIR = Path(__file__).resolve().parent / "naver"
 SCRIPT = VENDOR_DIR / "publish.mjs"
@@ -71,7 +71,8 @@ class NaverBlogPublisher(Publisher):
             "aside browser drives the Naver editor: ensure_editor, inject_document, "
             "validate_editor, publish_panel")]
 
-    def send(self, item: QueueItem, env: dict[str, str]) -> str:
+    def send(self, item: QueueItem, env: dict[str, str],
+             tracker: DeliveryTracker) -> str:
         job = self.job(item, env)
         result = self._invoke(job, dry_run=False)
         if not result.get("ok"):

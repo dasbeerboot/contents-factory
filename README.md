@@ -37,12 +37,13 @@ factory gate run (--brief b_... | --text "...") [--format threads_post] [--gate 
 factory queue add --platform threads [--brief b_... --output 0] [--text "..."]
                   [--media path --public-url url] [--slot next|2026-10-15T12:00:00Z]
 factory queue list [--pending] [--json] | approve | unapprove | arm --reason "..." | disarm | purge
+factory queue reopen --item q_... --reason "..."   # unknown phase 해제 (사람 확인 후)
 factory publish <platform> --item q_... [--dry-run]
 factory schedule install|remove|status [--runner launchd|cron] | tick [--dry-run]
 factory token refresh [--profile X] [--platform threads|instagram] [--dry-run]
 factory ledger summary [--days 30]
 factory i18n get <key> [--lang ko|en] | keys | missing --lang ko
-factory formats [--kind text|image|video]
+factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
 ```
 
 `python -m factory ...` 도 같은 엔트리다.
@@ -59,6 +60,22 @@ factory formats [--kind text|image|video]
 - 토큰 만료 7일 전부터 tick이 경고를 띄운다.
 - 네이버는 로그인된 aside 브라우저 세션이 필요하다. 없으면 `NAVER_SESSION_MISSING`으로
   큐에 그대로 남는다.
+
+### 중복발행 방어 (delivery phase)
+
+큐 아이템은 `ready → creating → container → publishing → published` 상태를 지난다.
+`creating`·`publishing`에서 런이 죽으면(응답 유실) 그 아이템은 `unknown`으로 주차되고
+**자동 재시도하지 않는다** — 재발행이 중복 게시를 만들 수 있기 때문이다.
+
+- `container` 상태면 다음 tick이 컨테이너를 **재사용**해서 publish 단계만 다시 한다.
+  24시간 지난 컨테이너는 1회 재생성한다(`container_regen`).
+- 실패 코드가 "아무것도 제출되지 않았음"을 증명하는 것(4xx·사전검증·세션없음)이면
+  `ready`로 되돌려 재시도한다. 5xx·네트워크 끊김·미등록 코드는 전부 `unknown`이다.
+- `content_sha256`이 박힌 뒤 본문·미디어가 바뀌면 `DELIVERY_CONTENT_CHANGED`로 멈춘다.
+- `unknown` 해제는 사람이 플랫폼을 직접 확인한 뒤:
+  `factory queue reopen --item q_... --reason "<확인 내용>"`.
+  `container_id`나 `published_id`가 남아 있으면 거부한다(`DELIVERY_MAY_BE_PUBLISHED`).
+- `phase=published`인데 `published` 플래그가 없으면 tick이 플래그만 복구한다(재발행 안 함).
 
 ## 프로필 / Profile
 

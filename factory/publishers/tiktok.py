@@ -16,7 +16,7 @@ from typing import Any, ClassVar
 from ..credentials import redacted
 from ..errors import FactoryError, scrub
 from ..spec.queue import QueueItem
-from .base import Publisher, PublishRequest
+from .base import DeliveryTracker, Publisher, PublishRequest
 
 MCP_URL = "https://mcp.higgsfield.ai/mcp"
 PROTOCOL_VERSION = "2025-06-18"
@@ -211,7 +211,8 @@ class TikTokPublisher(Publisher):
             f"poll up to {POLL_TRIES} rounds"))
         return requests
 
-    def send(self, item: QueueItem, env: dict[str, str]) -> str:
+    def send(self, item: QueueItem, env: dict[str, str],
+             tracker: DeliveryTracker) -> str:
         client = McpClient(env["HIGGSFIELD_MCP_TOKEN"])
         accounts, raw = client.call("tiktok_accounts", {})
         if env["TIKTOK_CONNECTOR_ID"] not in str(accounts or raw):

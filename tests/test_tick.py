@@ -104,7 +104,7 @@ def test_run_publishes_and_marks(isolated_home: Path) -> None:
     item = store.add(armed())
     calls: list[str] = []
 
-    def publish(row):
+    def publish(row, tracker):
         calls.append(row.id)
         return True, "OK", "1789"
 
@@ -120,7 +120,7 @@ def test_run_records_publish_failure(isolated_home: Path) -> None:
     item = store.add(armed())
     report = tick.run(store, now=NOW, slots_for=lambda _row: SLOTS,
                       cap_for=lambda _row: 2,
-                      publish=lambda _row: (False, "HTTP_429", None))
+                      publish=lambda _row, _tracker: (False, "HTTP_429", None))
     assert report.errors == [(item.id, "HTTP_429")]
     stored = store.get(item.id)
     assert stored.published is False and stored.last_error == "HTTP_429"
@@ -131,7 +131,7 @@ def test_run_applies_repeat_guard_before_publish(isolated_home: Path) -> None:
     item = store.add(armed())
     report = tick.run(store, now=NOW, slots_for=lambda _row: SLOTS,
                       cap_for=lambda _row: 2,
-                      publish=lambda _row: (True, "OK", "1"),
+                      publish=lambda _row, _tracker: (True, "OK", "1"),
                       guard=lambda _text, profile: (False, "exact_sentence(x)"))
     assert report.published == []
     assert report.decisions[0].action == "skip"
@@ -144,13 +144,13 @@ def test_run_carries_then_drops(isolated_home: Path) -> None:
     item = store.add(armed())
     late = NOW + timedelta(hours=2)
     tick.run(store, now=late, slots_for=lambda _row: SLOTS, cap_for=lambda _row: 2,
-             publish=lambda _row: (True, "OK", "1"))
+             publish=lambda _row, _tracker: (True, "OK", "1"))
     carried = store.get(item.id)
     assert carried.scheduled_at == "2026-10-15T23:00:00Z"
     assert carried.carry_count == 1
     tick.run(store, now=datetime(2026, 10, 16, 2, 0, 0, tzinfo=timezone.utc),
              slots_for=lambda _row: SLOTS, cap_for=lambda _row: 2,
-             publish=lambda _row: (True, "OK", "1"))
+             publish=lambda _row, _tracker: (True, "OK", "1"))
     dropped = store.get(item.id)
     assert dropped.approved is False and dropped.last_error == "LATE_CARRY_EXHAUSTED"
 
@@ -160,7 +160,7 @@ def test_run_respects_cap_across_items(isolated_home: Path) -> None:
     store.add(armed())
     store.add(armed(id="q_20261015120500_cd34", scheduled_at="2026-10-15T12:05:00Z"))
     report = tick.run(store, now=NOW + timedelta(minutes=6), slots_for=lambda _row: SLOTS,
-                      cap_for=lambda _row: 1, publish=lambda _row: (True, "OK", "1"))
+                      cap_for=lambda _row: 1, publish=lambda _row, _tracker: (True, "OK", "1"))
     actions = [row.action for row in report.decisions]
     assert actions == ["publish", "skip"]
     assert report.decisions[1].reason == "DAILY_CAP"

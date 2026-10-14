@@ -11,7 +11,7 @@ from typing import Any, ClassVar
 from ..credentials import redacted
 from ..errors import FactoryError
 from ..spec.queue import QueueItem
-from .base import Publisher, PublishRequest, get_json, post_form
+from .base import DeliveryTracker, Publisher, PublishRequest, get_json, post_form
 
 IG_HOST = "https://graph.instagram.com"
 IG_API_VERSION = "v23.0"
@@ -94,10 +94,16 @@ class InstagramPublisher(Publisher):
             {"fields": "permalink", "access_token": token}, "receipt only"))
         return requests
 
-    def send(self, item: QueueItem, env: dict[str, str]) -> str:
+    def send(self, item: QueueItem, env: dict[str, str],
+             tracker: DeliveryTracker) -> str:
         token = env["IG_ACCESS_TOKEN"]
         shape = self._shape(item)
         urls = self._urls(item)
+        resumed = tracker.resume_container()
+        if resumed:
+            self._await_container(resumed, token)
+            tracker.begin_publish(resumed)
+            return self._publish_container(env, resumed, token)
         if shape == "reels":
             fields = {"media_type": "REELS", "video_url": urls[0], "caption": item.text,
                       "share_to_feed": "true", "access_token": token}
@@ -116,7 +122,13 @@ class InstagramPublisher(Publisher):
         else:
             container = self._container(env, {"image_url": urls[0], "caption": item.text,
                                               "access_token": token})
+        tracker.container_created(container)
         self._await_container(container, token)
+        tracker.begin_publish(container)
+        return self._publish_container(env, container, token)
+
+    def _publish_container(self, env: dict[str, str], container: str,
+                           token: str) -> str:
         published = post_form(self._node(env, "media_publish"),
                               {"creation_id": container, "access_token": token})
         media_id = str(published.get("id") or "")

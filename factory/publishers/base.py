@@ -8,13 +8,69 @@ import urllib.request
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal, Protocol
 
 from ..credentials import load_profile_env, redacted, require
 from ..errors import FactoryError, http_code, scrub
 from ..spec.queue import QueueItem
 
 TIMEOUT_SECONDS = 60
+
+FailureMode = Literal["retry", "hold", "unknown"]
+
+# Codes that prove nothing reached the platform, so a retry cannot double post.
+# Anything not listed is treated as unknown: when in doubt we stop, we never republish.
+RETRY_SAFE: frozenset[str] = frozenset({
+    "ENV_MISSING", "TEXT_TOO_LONG", "REPLY_TOO_LONG", "TITLE_REQUIRED",
+    "CATEGORY_REQUIRED", "TAGS_REQUIRED", "MEDIA_REQUIRED", "MEDIA_FILE_MISSING",
+    "MEDIA_PUBLIC_URL_REQUIRED", "MEDIA_PUBLIC_URL_PARTIAL", "CAROUSEL_SIZE_INVALID",
+    "PHOTO_COUNT_INVALID", "PRIVACY_INVALID", "PUBLISH_AT_INVALID", "PLATFORM_MISMATCH",
+    "ACCOUNT_ID_INVALID", "NAVER_SESSION_MISSING", "NODE_MISSING", "NAVER_SCRIPT_MISSING",
+    "DOCUMENT_TOO_LARGE", "IMAGE_UPLOAD_UNSUPPORTED", "JOB_INVALID", "BLOG_ID_INVALID",
+    "PUBLISH_MINUTE_NOT_TEN", "TOKEN_REFRESH_FAILED", "MCP_TOKEN_EXPIRED",
+    "TIKTOK_NOT_CONNECTED", "PREPARE_NO_PUBLISH_TOKEN", "CONTAINER_FAILED",
+    "REMOTE_REJECTED", "HTTP_400", "HTTP_401", "HTTP_403", "HTTP_404", "HTTP_422",
+    "HTTP_429",
+})
+# The container exists and is recorded: hold the phase and let the next tick resume.
+HOLD_CODES: frozenset[str] = frozenset({"CONTAINER_IN_PROGRESS"})
+
+
+def failure_mode(code: str) -> FailureMode:
+    text = str(code or "")
+    if text in HOLD_CODES:
+        return "hold"
+    if text in RETRY_SAFE:
+        return "retry"
+    if text.startswith("PUBLISH_NOT_SENT"):
+        return "retry"
+    return "unknown"
+
+
+class DeliveryTracker(Protocol):
+    """Lets a container based publisher record progress between the two calls."""
+
+    def resume_container(self) -> str | None:
+        ...
+
+    def container_created(self, container_id: str) -> None:
+        ...
+
+    def begin_publish(self, container_id: str) -> None:
+        ...
+
+
+class NullTracker:
+    """Used by dry runs and by platforms with a single submit call."""
+
+    def resume_container(self) -> str | None:
+        return None
+
+    def container_created(self, container_id: str) -> None:
+        return None
+
+    def begin_publish(self, container_id: str) -> None:
+        return None
 
 
 @dataclass(frozen=True)
@@ -80,10 +136,12 @@ class Publisher(ABC):
         """Request sequence for this item. No network, no secret values."""
 
     @abstractmethod
-    def send(self, item: QueueItem, env: dict[str, str]) -> str:
+    def send(self, item: QueueItem, env: dict[str, str],
+             tracker: DeliveryTracker) -> str:
         """Perform the live calls and return the remote id."""
 
-    def publish(self, item: QueueItem, *, dry_run: bool = False) -> PublishResult:
+    def publish(self, item: QueueItem, *, dry_run: bool = False,
+                tracker: DeliveryTracker | None = None) -> PublishResult:
         if item.platform != self.platform:
             return PublishResult(False, self.platform, item.id, "PLATFORM_MISMATCH")
         env = self.env(item.profile)
@@ -98,7 +156,7 @@ class Publisher(ABC):
             return PublishResult(True, self.platform, item.id, "DRY_RUN",
                                  requests=requests, dry_run=True)
         try:
-            published_id = self.send(item, env)
+            published_id = self.send(item, env, tracker or NullTracker())
         except FactoryError as error:
             return PublishResult(False, self.platform, item.id, error.code, requests=requests)
         return PublishResult(True, self.platform, item.id, "OK", published_id, requests)

@@ -47,6 +47,12 @@ def build_parser(parent: argparse._SubParsersAction) -> None:
     arm.add_argument("--item", required=True)
     arm.add_argument("--reason", required=True)
 
+    reopen = actions.add_parser("reopen",
+                                help="clear an unknown delivery phase after checking "
+                                     "the platform by hand")
+    reopen.add_argument("--item", required=True)
+    reopen.add_argument("--reason", required=True)
+
     purge = actions.add_parser("purge")
     purge.add_argument("--before", help="YYYY-MM-DDTHH:MM:SSZ")
     purge.add_argument("--include-unpublished", action="store_true")
@@ -125,7 +131,8 @@ def run(config: Config, args: argparse.Namespace) -> int:
                              "R" if item.armed else "-",
                              "P" if item.published else "-"])
             print(f"{item.id}  {item.scheduled_at}  {item.platform:<10} {flags}  "
-                  f"{item.profile}  {item.text[:48].replace(chr(10), ' ')}")
+                  f"{item.phase:<10} {item.profile}  "
+                  f"{item.text[:40].replace(chr(10), ' ')}")
         return 0
 
     if args.queue_command == "approve":
@@ -140,6 +147,10 @@ def run(config: Config, args: argparse.Namespace) -> int:
         return 0
     if args.queue_command == "disarm":
         print(store.disarm(args.item).id)
+        return 0
+    if args.queue_command == "reopen":
+        item = store.reopen_delivery(args.item, args.reason)
+        print(f"{item.id} phase={item.phase}")
         return 0
     if args.queue_command == "purge":
         before = args.before or utc_stamp(now)

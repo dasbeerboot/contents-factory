@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from ..errors import FactoryError
-from ..spec.queue import QUEUE_ID, QueueItem, parse_stamp, utc_stamp
+from ..spec.queue import (IN_FLIGHT, QUEUE_ID, RESUMABLE, QueueItem, parse_stamp,
+                          utc_stamp)
 
 DAY_FILE = "%s.json"
 _ALPHABET = string.ascii_lowercase + string.digits
@@ -186,10 +187,94 @@ class QueueStore:
             item.published_at = utc_stamp(now or datetime.now(timezone.utc))
             item.last_error = None
             item.armed = False
+            item.phase = "published"
             return item
         return self.mutate(item_id, change)
 
+    # ---------- delivery phase machine ----------
+
+    def begin_delivery(self, item_id: str, *, now: datetime | None = None) -> QueueItem:
+        """ready or container -> creating. Stamps the content hash on first attempt."""
+        moment = now or datetime.now(timezone.utc)
+
+        def change(item: QueueItem) -> QueueItem:
+            if item.published or item.phase == "published":
+                raise FactoryError("QUEUE_ALREADY_PUBLISHED", item_id)
+            if item.phase not in RESUMABLE:
+                raise FactoryError("DELIVERY_UNCONFIRMED", item.phase)
+            if item.content_changed():
+                raise FactoryError("DELIVERY_CONTENT_CHANGED", item_id)
+            if not item.content_sha256:
+                item.content_sha256 = item.fingerprint()
+            if item.phase == "container" and item.container_expired(now=moment):
+                item.container_id = None
+                item.container_at = None
+                item.container_regen += 1
+            item.phase = "creating"
+            item.attempts += 1
+            return item
+        return self.mutate(item_id, change)
+
+    def container_created(self, item_id: str, container_id: str,
+                          *, now: datetime | None = None) -> QueueItem:
+        identifier = str(container_id or "").strip()
+        if not identifier:
+            raise FactoryError("CONTAINER_ID_INVALID", item_id)
+        moment = utc_stamp(now or datetime.now(timezone.utc))
+
+        def change(item: QueueItem) -> QueueItem:
+            item.phase = "container"
+            item.container_id = identifier
+            item.container_at = moment
+            return item
+        return self.mutate(item_id, change)
+
+    def begin_publish(self, item_id: str, container_id: str | None = None) -> QueueItem:
+        def change(item: QueueItem) -> QueueItem:
+            if container_id:
+                item.container_id = str(container_id)
+            item.phase = "publishing"
+            return item
+        return self.mutate(item_id, change)
+
+    def delivery_failed(self, item_id: str, code: str) -> QueueItem:
+        """The remote rejected us, so nothing was posted: back to ready for a retry."""
+        def change(item: QueueItem) -> QueueItem:
+            item.phase = "ready"
+            item.last_error = str(code)[:64]
+            return item
+        return self.mutate(item_id, change)
+
+    def delivery_unknown(self, item_id: str, code: str) -> QueueItem:
+        """The response was lost. Never auto retried: only queue reopen clears this."""
+        def change(item: QueueItem) -> QueueItem:
+            item.phase = "unknown"
+            item.last_error = str(code)[:64]
+            return item
+        return self.mutate(item_id, change)
+
+    def reopen_delivery(self, item_id: str, reason: str) -> QueueItem:
+        """Manual recovery, refused when anything suggests the post may exist."""
+        text = str(reason or "").strip()
+        if len(text) < 4:
+            raise FactoryError("REOPEN_REASON_REQUIRED", item_id)
+
+        def change(item: QueueItem) -> QueueItem:
+            if item.published or item.published_id:
+                raise FactoryError("QUEUE_ALREADY_PUBLISHED", item_id)
+            if item.container_id:
+                raise FactoryError("DELIVERY_MAY_BE_PUBLISHED", item_id)
+            item.phase = "ready"
+            item.last_error = f"reopened:{text[:48]}"
+            return item
+        return self.mutate(item_id, change)
+
+    def resume_container(self, item_id: str) -> str | None:
+        item = self.get(item_id)
+        return item.container_id if item.phase == "container" else None
+
     def record_error(self, item_id: str, code: str) -> QueueItem:
+        """Bookkeeping for failures outside a delivery attempt (gates, caps, drops)."""
         def change(item: QueueItem) -> QueueItem:
             item.attempts += 1
             item.last_error = str(code)[:64]
@@ -223,3 +308,27 @@ class QueueStore:
         horizon = now + timedelta(days=days)
         return [item for item in self.list(published=False)
                 if now <= item.scheduled_dt() <= horizon]
+
+
+class StoreTracker:
+    """DeliveryTracker bound to one queue item. The store stays the only writer.
+
+    `now` comes from the caller so container timestamps share one clock with the tick
+    that is judging container expiry.
+    """
+
+    def __init__(self, store: QueueStore, item_id: str,
+                 now: datetime | None = None) -> None:
+        self.store = store
+        self.item_id = item_id
+        self.now = now
+
+    def resume_container(self) -> str | None:
+        item = self.store.get(self.item_id)
+        return item.container_id if item.container_id else None
+
+    def container_created(self, container_id: str) -> None:
+        self.store.container_created(self.item_id, container_id, now=self.now)
+
+    def begin_publish(self, container_id: str) -> None:
+        self.store.begin_publish(self.item_id, container_id)

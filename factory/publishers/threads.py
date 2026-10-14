@@ -12,7 +12,7 @@ from typing import Any, ClassVar
 from ..credentials import redacted
 from ..errors import FactoryError
 from ..spec.queue import QueueItem
-from .base import Publisher, PublishRequest, get_json, post_form
+from .base import DeliveryTracker, Publisher, PublishRequest, get_json, post_form
 
 API_BASE = "https://graph.threads.net/v1.0"
 TEXT_LIMIT = 500
@@ -84,29 +84,38 @@ class ThreadsPublisher(Publisher):
                 raise FactoryError("REPLY_TOO_LONG", str(len(reply)))
         return replies
 
-    def send(self, item: QueueItem, env: dict[str, str]) -> str:
+    def send(self, item: QueueItem, env: dict[str, str],
+             tracker: DeliveryTracker) -> str:
         user_id = self._user_id(env)
         token = env["THREADS_ACCESS_TOKEN"]
         media_type = self._media_kind(item)
-        fields: dict[str, str] = {"media_type": media_type, "text": item.text,
-                                  "access_token": token}
-        if media_type == "TEXT":
-            topic = item.extra.get("topic_tag", "")
-            if topic:
-                fields["topic_tag"] = topic
+        creation_id = tracker.resume_container()
+        if creation_id:
+            # A previous run already created this container: do not create a second one.
+            if media_type != "TEXT":
+                self._await_container(creation_id, token)
         else:
-            public = item.public_media()
-            if not public:
-                raise FactoryError("MEDIA_PUBLIC_URL_REQUIRED", media_type)
-            fields["image_url" if media_type == "IMAGE" else "video_url"] = public[0]
-        created = post_form(f"{API_BASE}/{user_id}/threads", fields)
-        creation_id = str(created.get("id") or "")
-        if not creation_id.isdigit():
-            raise FactoryError("CONTAINER_ID_INVALID")
-        if media_type != "TEXT":
-            self._await_container(creation_id, token)
-        else:
-            time.sleep(CONTAINER_SETTLE_SECONDS)
+            fields: dict[str, str] = {"media_type": media_type, "text": item.text,
+                                      "access_token": token}
+            if media_type == "TEXT":
+                topic = item.extra.get("topic_tag", "")
+                if topic:
+                    fields["topic_tag"] = topic
+            else:
+                public = item.public_media()
+                if not public:
+                    raise FactoryError("MEDIA_PUBLIC_URL_REQUIRED", media_type)
+                fields["image_url" if media_type == "IMAGE" else "video_url"] = public[0]
+            created = post_form(f"{API_BASE}/{user_id}/threads", fields)
+            creation_id = str(created.get("id") or "")
+            if not creation_id.isdigit():
+                raise FactoryError("CONTAINER_ID_INVALID")
+            tracker.container_created(creation_id)
+            if media_type != "TEXT":
+                self._await_container(creation_id, token)
+            else:
+                time.sleep(CONTAINER_SETTLE_SECONDS)
+        tracker.begin_publish(creation_id)
         published = post_form(f"{API_BASE}/{user_id}/threads_publish",
                               {"creation_id": creation_id, "access_token": token})
         post_id = str(published.get("id") or "")

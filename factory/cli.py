@@ -16,7 +16,8 @@ from .gates import forbidden_words, limits, repeat_guard
 from .generators import text as text_generator
 from .publishers import publisher_for, required_env
 from .queue import cli as queue_cli
-from .queue.store import QueueStore
+from .publishers.base import DeliveryTracker, failure_mode
+from .queue.store import QueueStore, StoreTracker
 from .review import terminal
 from .scheduler import cron, launchd, tick, token_refresh
 from .spec.brief import (Output, load_brief, new_brief_id, parse_brief, save_brief,
@@ -397,23 +398,31 @@ def _publish(config: Config, args: argparse.Namespace) -> int:
     if item.platform != args.platform:
         raise FactoryError("PLATFORM_MISMATCH", args.platform)
     publisher = publisher_for(args.platform, home)
-    if not args.dry_run:
-        if not item.approved:
-            raise FactoryError("NOT_APPROVED", item.id)
-        if not item.armed:
-            raise FactoryError("NOT_ARMED", item.id)
-    result = publisher.publish(item, dry_run=args.dry_run)
     if args.dry_run:
+        result = publisher.publish(item, dry_run=True)
         print(i18n.get("publish.dry_run.header", config.ui_lang))
+        print(result.render())
+        return EXIT_OK if result.ok else EXIT_ERROR
+    if not item.approved:
+        raise FactoryError("NOT_APPROVED", item.id)
+    if not item.armed:
+        raise FactoryError("NOT_ARMED", item.id)
+    store.begin_delivery(item.id)
+    result = publisher.publish(item, tracker=StoreTracker(store, item.id, datetime.now(timezone.utc)))
     print(result.render())
-    if not args.dry_run:
-        if result.ok:
-            store.mark_published(item.id, result.published_id)
-        else:
+    if result.ok:
+        store.mark_published(item.id, result.published_id)
+    else:
+        mode = failure_mode(result.code)
+        if mode == "retry":
+            store.delivery_failed(item.id, result.code)
+        elif mode == "hold":
             store.record_error(item.id, result.code)
-        ledger.record(home, track="publish", kind=item.kind, platform=item.platform,
-                      profile=item.profile, ref=item.id,
-                      result="ok" if result.ok else result.code)
+        else:
+            store.delivery_unknown(item.id, result.code)
+    ledger.record(home, track="publish", kind=item.kind, platform=item.platform,
+                  profile=item.profile, ref=item.id,
+                  result="ok" if result.ok else result.code)
     return EXIT_OK if result.ok else EXIT_ERROR
 
 
@@ -468,11 +477,11 @@ def _tick(config: Config, *, dry_run: bool) -> int:
                                   closers=profiles[profile].closers
                                   if profile in profiles else ())
 
-    def publish(item: QueueItem) -> tuple[bool, str, str | None]:
+    def publish(item: QueueItem, tracker: DeliveryTracker) -> tuple[bool, str, str | None]:
         if dry_run:
             return False, "DRY_RUN", None
         publisher = publisher_for(item.platform, home)
-        result = publisher.publish(item)
+        result = publisher.publish(item, tracker=tracker)
         ledger.record(home, track="publish", kind=item.kind, platform=item.platform,
                       profile=item.profile, ref=item.id,
                       result="ok" if result.ok else result.code)

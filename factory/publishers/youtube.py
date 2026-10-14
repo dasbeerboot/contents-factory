@@ -19,7 +19,7 @@ from typing import Any, ClassVar
 from ..credentials import redacted
 from ..errors import FactoryError
 from ..spec.queue import QueueItem
-from .base import Publisher, PublishRequest, post_form
+from .base import DeliveryTracker, Publisher, PublishRequest, post_form
 
 UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -122,7 +122,8 @@ class YouTubePublisher(Publisher):
                             "file": str(path)}, "bytes"),
         ]
 
-    def send(self, item: QueueItem, env: dict[str, str]) -> str:
+    def send(self, item: QueueItem, env: dict[str, str],
+             tracker: DeliveryTracker) -> str:
         path = self._video_path(item)
         if not path.is_file():
             raise FactoryError("MEDIA_FILE_MISSING")

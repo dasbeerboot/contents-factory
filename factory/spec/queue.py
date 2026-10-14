@@ -1,6 +1,8 @@
 """QueueItem model. Only queue.store writes these; never hand-edit the json."""
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from datetime import datetime, timezone
 from typing import Literal
@@ -11,8 +13,22 @@ from .brief import BRIEF_ID, Kind
 from .profile import PLATFORMS, LatePolicy
 
 QUEUE_ID = re.compile(r"^q_[0-9]{14}_[a-z0-9]{4}$")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
 UTC_STAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 Platform = Literal["threads", "instagram", "tiktok", "youtube", "naver_blog"]
+
+# Delivery phase machine, ported from saju-threads threads_delivery.py.
+#   ready      nothing submitted, safe to start or retry
+#   creating   a container request is in flight, outcome unknown
+#   container  a container id came back, publish step still owed
+#   publishing a publish request is in flight, outcome unknown
+#   published  a remote id came back
+#   unknown    a request was sent and the response was lost, never auto retried
+Phase = Literal["ready", "creating", "container", "publishing", "published", "unknown"]
+# Phases where a send was in flight: republishing could double post.
+IN_FLIGHT: frozenset[str] = frozenset({"creating", "publishing"})
+RESUMABLE: frozenset[str] = frozenset({"ready", "container"})
+CONTAINER_TTL_SECONDS = 24 * 3600
 
 
 class Media(BaseModel):
@@ -45,6 +61,11 @@ class QueueItem(BaseModel):
     carry_count: int = Field(default=0, ge=0)
     published_at: str | None = None
     extra: dict[str, str] = Field(default_factory=dict)
+    phase: Phase = "ready"
+    container_id: str | None = None
+    container_at: str | None = None
+    content_sha256: str = ""
+    container_regen: int = Field(default=0, ge=0)
 
     @field_validator("id")
     @classmethod
@@ -60,7 +81,14 @@ class QueueItem(BaseModel):
             raise ValueError("brief_id must look like b_20261014_x1")
         return value
 
-    @field_validator("scheduled_at", "published_at")
+    @field_validator("content_sha256")
+    @classmethod
+    def _sha_shape(cls, value: str) -> str:
+        if value and not SHA256.match(value):
+            raise ValueError("content_sha256 must be 64 hex chars")
+        return value
+
+    @field_validator("scheduled_at", "published_at", "container_at")
     @classmethod
     def _stamp_shape(cls, value: str | None) -> str | None:
         if value is None:
@@ -85,6 +113,25 @@ class QueueItem(BaseModel):
 
     def public_media(self) -> list[str]:
         return [entry.public_url for entry in self.media if entry.public_url]
+
+    def fingerprint(self) -> str:
+        """Hash of everything that would change what gets posted."""
+        payload = {"text": self.text, "kind": self.kind, "platform": self.platform,
+                   "media": [[entry.path, entry.public_url, entry.kind]
+                             for entry in self.media],
+                   "extra": {key: self.extra[key] for key in sorted(self.extra)}}
+        body = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        return hashlib.sha256(body).hexdigest()
+
+    def content_changed(self) -> bool:
+        return bool(self.content_sha256) and self.content_sha256 != self.fingerprint()
+
+    def container_expired(self, *, now: datetime,
+                          ttl_seconds: int = CONTAINER_TTL_SECONDS) -> bool:
+        if not self.container_at:
+            return False
+        age = (now - parse_stamp(self.container_at)).total_seconds()
+        return age > ttl_seconds
 
 
 def utc_stamp(moment: datetime) -> str:

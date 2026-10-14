@@ -16,9 +16,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Literal, Protocol, Sequence
 
-from ..spec.queue import QueueItem, utc_stamp
+from ..errors import FactoryError
+from ..publishers.base import DeliveryTracker, failure_mode
+from ..queue.store import QueueStore, StoreTracker
+from ..spec.queue import IN_FLIGHT, QueueItem, utc_stamp
 
-Action = Literal["publish", "skip", "carry", "drop"]
+Action = Literal["publish", "skip", "carry", "drop", "repair"]
 LATE_GRACE_SECONDS = 900
 
 
@@ -28,6 +31,7 @@ class Decision:
     action: Action
     reason: str
     scheduled_at: str | None = None
+    resume_container: str | None = None
 
 
 @dataclass
@@ -67,6 +71,14 @@ def next_slot(slots: Sequence[str], after: datetime) -> datetime | None:
 def decide(item: QueueItem, context: TickContext) -> Decision:
     if item.published:
         return Decision(item.id, "skip", "ALREADY_PUBLISHED")
+    if item.phase == "published":
+        # A publish succeeded but the flag write did not land. Repair, never resend.
+        return Decision(item.id, "repair", "PUBLISHED_FLAG_MISSING")
+    if item.phase in IN_FLIGHT or item.phase == "unknown":
+        # A request was sent and we never saw the answer. Resending could double post.
+        return Decision(item.id, "skip", f"DELIVERY_UNCONFIRMED:{item.phase}")
+    if item.content_changed():
+        return Decision(item.id, "skip", "DELIVERY_CONTENT_CHANGED")
     if not item.approved:
         return Decision(item.id, "skip", "NOT_APPROVED")
     if not item.armed:
@@ -89,6 +101,8 @@ def decide(item: QueueItem, context: TickContext) -> Decision:
 
     if context.daily_cap and context.published_today >= context.daily_cap:
         return Decision(item.id, "skip", "DAILY_CAP")
+    if item.phase == "container" and not item.container_expired(now=now):
+        return Decision(item.id, "publish", "RESUME_CONTAINER", None, item.container_id)
     return Decision(item.id, "publish", "DUE")
 
 
@@ -96,6 +110,7 @@ def decide(item: QueueItem, context: TickContext) -> Decision:
 class TickReport:
     decisions: list[Decision] = field(default_factory=list)
     published: list[str] = field(default_factory=list)
+    repaired: list[str] = field(default_factory=list)
     errors: list[tuple[str, str]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -105,13 +120,19 @@ class TickReport:
         return lines
 
 
-def run(store, *, now: datetime,
+def run(store: QueueStore, *, now: datetime,
         slots_for: Callable[[QueueItem], Sequence[str]],
         cap_for: Callable[[QueueItem], int],
-        publish: Callable[[QueueItem], tuple[bool, str, str | None]],
+        publish: Callable[[QueueItem, DeliveryTracker], tuple[bool, str, str | None]],
         guard: RepeatGuard | None = None,
         late_grace_seconds: int = LATE_GRACE_SECONDS) -> TickReport:
-    """Walk every unpublished item, apply `decide`, then publish the survivors."""
+    """Walk every unpublished item, apply `decide`, then publish the survivors.
+
+    Delivery runs through the phase machine: begin_delivery before the first byte leaves,
+    then the publisher reports container progress through the tracker. A failure is only
+    retried when its code proves nothing was submitted; otherwise the item parks in
+    `unknown` and waits for `queue reopen`.
+    """
     report = TickReport()
     moment = now.astimezone(timezone.utc)
     today = moment.strftime("%Y-%m-%d")
@@ -132,18 +153,43 @@ def run(store, *, now: datetime,
                 store.record_error(item.id, "REPEAT_BLOCK")
         report.decisions.append(decision)
 
-        if decision.action == "carry" and decision.scheduled_at:
+        if decision.action == "repair":
+            store.mark_published(item.id, item.published_id, now=moment)
+            counters[key] += 1
+            report.repaired.append(item.id)
+        elif decision.action == "carry" and decision.scheduled_at:
             store.reschedule(item.id, decision.scheduled_at, carried=True)
         elif decision.action == "drop":
             store.unapprove(item.id)
             store.record_error(item.id, decision.reason)
         elif decision.action == "publish":
-            ok, code, published_id = publish(item)
-            if ok:
-                store.mark_published(item.id, published_id, now=moment)
-                counters[key] += 1
-                report.published.append(item.id)
-            else:
-                store.record_error(item.id, code)
-                report.errors.append((item.id, code))
+            _deliver(store, item, publish, report, counters, key, moment)
     return report
+
+
+def _deliver(store: QueueStore, item: QueueItem,
+             publish: Callable[[QueueItem, DeliveryTracker], tuple[bool, str, str | None]],
+             report: TickReport, counters: dict[tuple[str, str], int],
+             key: tuple[str, str], moment: datetime) -> None:
+    try:
+        store.begin_delivery(item.id, now=moment)
+    except FactoryError as error:
+        report.decisions[-1] = Decision(item.id, "skip", error.code)
+        report.errors.append((item.id, error.code))
+        return
+    ok, code, published_id = publish(item, StoreTracker(store, item.id, moment))
+    if ok:
+        store.mark_published(item.id, published_id, now=moment)
+        counters[key] += 1
+        report.published.append(item.id)
+        return
+    mode = failure_mode(code)
+    if mode == "retry":
+        store.delivery_failed(item.id, code)
+    elif mode == "hold":
+        # The container exists and the tracker already recorded it: leave the phase
+        # alone so the next tick resumes at the publish step.
+        store.record_error(item.id, code)
+    else:
+        store.delivery_unknown(item.id, code)
+    report.errors.append((item.id, code))
