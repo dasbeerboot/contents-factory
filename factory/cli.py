@@ -64,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
     brief_new.add_argument("--format", required=True)
     brief_new.add_argument("--profile")
     brief_new.add_argument("--answers", help="path to a json file, or - for stdin")
+    brief_new.add_argument("--force", action="store_true",
+                           help="overwrite a brief that already has this id")
     brief_show = brief_actions.add_parser("show")
     brief_show.add_argument("--brief", required=True)
 
@@ -324,7 +326,7 @@ def _brief(config: Config, args: argparse.Namespace) -> int:
         if spec.credit_cap_per_item and "budget" not in data:
             data["budget"] = {"credits": spec.credit_cap_per_item, "tokens": 0}
         brief = parse_brief(data)
-        path = save_brief(home, brief)
+        path = save_brief(home, brief, overwrite=bool(args.force))
         print(json.dumps({"brief": brief.id, "path": str(path),
                           "questions": spec.question_keys()}, ensure_ascii=False))
         return EXIT_OK

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import random
 import re
+import string
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -14,7 +16,12 @@ from .profile import PLATFORMS
 
 Kind = Literal["text", "image", "video"]
 PublishMode = Literal["queue_only", "slot", "auto_after_approve"]
-BRIEF_ID = re.compile(r"^b_[0-9]{8}_[A-Za-z0-9]{1,12}$")
+# Two shapes on purpose. New ids are `b_<utc YYYYMMDDHHMMSS>_<4 chars>`, the same
+# construction queue ids use, because the old `b_<date>_<format>` collided: two briefs
+# of the same format on the same day got the same id and the second silently
+# overwrote the first (measured 2026-10-14, a sujin brief landing on an unni one).
+# The 8-digit form stays loadable so briefs already on disk keep opening.
+BRIEF_ID = re.compile(r"^b_(?:[0-9]{8}|[0-9]{14})_[A-Za-z0-9]{1,12}$")
 
 
 class Budget(BaseModel):
@@ -138,9 +145,21 @@ def parse_brief(data: dict[str, object]) -> Brief:
         raise FactoryError("BRIEF_INVALID", str(data.get("id") or "")[:32]) from None
 
 
-def new_brief_id(seed: str, *, now: datetime | None = None) -> str:
-    stamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%d")
-    suffix = re.sub(r"[^A-Za-z0-9]", "", seed)[:12] or "x1"
+BRIEF_SUFFIX_ALPHABET = string.ascii_lowercase + string.digits
+
+
+def new_brief_id(seed: str = "", *, now: datetime | None = None,
+                 rng: random.Random | None = None) -> str:
+    """Second-resolution stamp plus four random characters.
+
+    `seed` is kept in the signature and ignored for the id itself: naming the id
+    after the format is what made two briefs collide. The format is already on
+    the brief, so nothing needs it in the filename.
+    """
+    stamp = (now or datetime.now(timezone.utc)).astimezone(
+        timezone.utc).strftime("%Y%m%d%H%M%S")
+    source = rng or random
+    suffix = "".join(source.choice(BRIEF_SUFFIX_ALPHABET) for _ in range(4))
     return f"b_{stamp}_{suffix}"
 
 
@@ -150,8 +169,16 @@ def brief_path(home: Path, brief_id: str) -> Path:
     return home / "briefs" / f"{brief_id}.json"
 
 
-def save_brief(home: Path, brief: Brief) -> Path:
+def save_brief(home: Path, brief: Brief, *, overwrite: bool = True) -> Path:
+    """Write the brief. `overwrite=False` is the creation path's guard.
+
+    Stage writes (generated outputs going back onto the brief) must overwrite, so
+    that stays the default. Creating a brief on top of an existing one is what
+    silently lost a round of answers, so that caller passes False.
+    """
     path = brief_path(home, brief.id)
+    if not overwrite and path.exists():
+        raise FactoryError("BRIEF_EXISTS", brief.id)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(brief.model_dump_json(indent=2), encoding="utf-8")

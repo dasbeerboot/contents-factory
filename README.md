@@ -31,6 +31,7 @@ the json is how the scheduler dies.
 factory init
 factory profile add <name> [--from _example] | list | show [name]
 factory brief new --kind text --format threads_post [--profile X] [--answers file|-]
+                  [--force]   # id 는 b_<UTC초>_<4자>, 기존 id 덮으려면 --force
 factory brief show --brief b_...
 factory gen text  --brief b_... [--dry-run]
 factory gen image --brief b_... [--dry-run]   # 실제 higgsfield 호출, --dry-run은 argv만

@@ -121,3 +121,40 @@ def test_format_missing_raises() -> None:
     with pytest.raises(FactoryError) as error:
         load_format("text", "nope")
     assert error.value.code == "FORMAT_MISSING"
+
+
+# ------------------------------------------- brief ids used to collide within a day
+
+def test_two_briefs_of_the_same_format_on_one_day_get_different_ids() -> None:
+    """`b_<date>_<format>` gave both the same id and the second overwrote the first
+    (measured 2026-10-14, a sujin brief landing on an unni one)."""
+    ids = {new_brief_id("threads_post") for _ in range(200)}
+    assert len(ids) > 190
+
+
+def test_a_new_brief_id_has_the_queue_shape() -> None:
+    import re
+
+    assert re.match(r"^b_[0-9]{14}_[a-z0-9]{4}$", new_brief_id("threads_post"))
+
+
+def test_ids_already_on_disk_still_load() -> None:
+    from factory.spec.brief import BRIEF_ID
+
+    for old in ("b_20261014_threadspost", "b_20261014_thtest1", "b_20261014_x1"):
+        assert BRIEF_ID.match(old), old
+
+
+def test_creating_a_brief_over_an_existing_one_is_refused(
+        isolated_home: Path) -> None:
+    from factory.spec.brief import save_brief
+
+    brief = parse_brief({"id": new_brief_id(), "kind": "text",
+                         "format": "threads_post", "profile": "_example",
+                         "created_at": "2026-10-14T00:00:00Z"})
+    save_brief(isolated_home, brief, overwrite=False)
+    with pytest.raises(FactoryError) as error:
+        save_brief(isolated_home, brief, overwrite=False)
+    assert error.value.code == "BRIEF_EXISTS"
+    # Stage writes still land: outputs go back onto the brief after generation.
+    assert save_brief(isolated_home, brief).is_file()
