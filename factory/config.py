@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from pathlib import Path
 from typing import Literal
@@ -27,6 +28,25 @@ class Config(BaseModel):
     default_profile: str = "_example"
     home: str = DEFAULT_HOME
     review: ReviewChannel = "terminal"
+    # Extra repeat_guard corpus files, keyed by profile name ("*" applies to every
+    # profile). Point these at the post history of the pipeline this profile is taking
+    # over from: without it the guard only knows what this factory itself published, so
+    # every phrase the old pipeline already burned reads as fresh.
+    #   [extra_corpus]
+    #   someone = ["~/.other-pipeline/posts.jsonl"]
+    extra_corpus: dict[str, list[str]] = Field(default_factory=dict)
+
+    @field_validator("extra_corpus")
+    @classmethod
+    def _corpus_shape(cls, value: dict[str, list[str]]) -> dict[str, list[str]]:
+        for profile, paths in value.items():
+            if not re.match(r"^(\*|[A-Za-z0-9_\-]{1,40})$", profile):
+                raise ValueError(f"extra_corpus key must be a profile name or *, "
+                                 f"got {profile!r}")
+            if not isinstance(paths, list) or any(not str(entry).strip()
+                                                  for entry in paths):
+                raise ValueError(f"extra_corpus[{profile}] must be a list of paths")
+        return value
 
     @field_validator("content_lang")
     @classmethod
@@ -64,6 +84,16 @@ class Config(BaseModel):
 
     def ledger_path(self) -> Path:
         return self.state_dir("ledger.jsonl")
+
+    def corpus_paths(self, profile: str) -> tuple[Path, ...]:
+        """Existing extra corpus files for this profile, '*' entries first."""
+        found: list[Path] = []
+        for key in ("*", profile):
+            for entry in self.extra_corpus.get(key, ()):
+                path = Path(str(entry)).expanduser()
+                if path not in found:
+                    found.append(path)
+        return tuple(found)
 
 
 def repo_root() -> Path:

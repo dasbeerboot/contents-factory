@@ -3,3 +3,12 @@ content_lang = "en"
 default_profile = "_example"
 home = "~/.contents-factory"
 review = "terminal"
+
+# Extra repeat_guard corpus files, keyed by profile ("*" = every profile). Point these at
+# the post history of whatever pipeline this profile is taking over from; otherwise the
+# guard only knows this factory's own published items and every already-burned phrase
+# reads as fresh. .jsonl (one object per line), .json ({"items": [...]} or a list) and
+# plain text are all accepted; rows need a `text` field and ideally `published_at`.
+# [extra_corpus]
+# "*"     = []
+# someone = ["~/.other-pipeline/posts.jsonl"]

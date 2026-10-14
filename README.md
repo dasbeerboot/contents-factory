@@ -68,6 +68,11 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
 - P0에는 자동승인이 없다(§10 결정1). 승인은 사람이 한다. P1에서 프로필 옵션
   `auto_approve`(기본 false)가 들어오더라도 `armed` 게이트는 그대로 남는다.
 - `repeat_guard`는 큐 적재 때 통과했어도 **발행 직전에 다시** 돈다.
+- 이 팩토리로 넘어온 프로필은 `factory.toml`의 `[extra_corpus]`에 **이전 파이프라인의 발행
+  이력**을 걸어둔다. 안 걸면 가드가 자기 큐만 보므로 이미 태운 문구가 새 문구로 통과한다.
+  프로필명 키(`"*"` = 전 프로필), 값은 경로 리스트. `.jsonl`·`.json`·평문을 읽고 행의
+  `text`를 본문, `published_at`을 시각으로 쓴다. 캐시 시그니처에 이 파일들의 mtime·size가
+  들어가서 외부 코퍼스가 자라면 인덱스가 바로 무효화된다.
 - 토큰 만료 7일 전부터 tick이 경고를 띄운다.
 - 네이버는 로그인된 aside 브라우저 세션이 필요하다. 없으면 `NAVER_SESSION_MISSING`으로
   큐에 그대로 남는다.

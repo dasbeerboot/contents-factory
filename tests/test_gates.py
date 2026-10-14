@@ -228,3 +228,96 @@ def test_caption_safe_zone_scales_to_another_frame() -> None:
     assert report.frame == (540, 960)
     assert report.zone["x_min"] == 100 and report.zone["x_max"] == 440
     assert report.ok is True
+
+
+# ---------------------------------------------------- extra corpus (factory.toml)
+
+OUTSIDE = ("The chart runs hot, which is why the room warms up when you walk in, "
+           "and that warmth costs more than anyone in the room ever sees.")
+
+
+def write_jsonl(path: Path, rows: list[dict[str, object]]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
+                    encoding="utf-8")
+    repeat_guard._MEMO.clear()
+    return path
+
+
+def test_extra_corpus_blocks_a_sentence_the_old_pipeline_already_published(
+        isolated_home: Path, tmp_path: Path) -> None:
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%S+0000", time.gmtime())
+    outside = write_jsonl(tmp_path / "posts.jsonl",
+                          [{"text": OUTSIDE, "published_at": stamp}])
+
+    allowed, _reason = repeat_guard.check(OUTSIDE, home=isolated_home,
+                                          profile="_example")
+    assert allowed, "without the extra corpus the guard cannot know about it"
+
+    allowed, reason = repeat_guard.check(OUTSIDE, home=isolated_home,
+                                         profile="_example",
+                                         extra_corpus=[outside])
+    assert not allowed
+    assert reason.startswith("exact_sentence") or reason.startswith("ngram_overlap")
+
+
+def test_extra_corpus_counts_as_a_corpus_source_in_the_verdict(
+        isolated_home: Path, tmp_path: Path) -> None:
+    outside = write_jsonl(tmp_path / "posts.jsonl", [{"text": OUTSIDE}])
+    report = repeat_guard.judge("totally unrelated opening line", home=isolated_home,
+                                profile="_example", extra_corpus=[outside])
+    assert report["corpus"]["docs"] == 1
+    assert any(key.startswith("extra1:") for key in report["corpus"]["sources"])
+
+
+def test_extra_corpus_accepts_json_lists_and_plain_text(
+        isolated_home: Path, tmp_path: Path) -> None:
+    listed = tmp_path / "a.json"
+    listed.write_text(json.dumps({"items": [{"text": OUTSIDE}]}), encoding="utf-8")
+    plain = tmp_path / "b.md"
+    plain.write_text(OUTSIDE, encoding="utf-8")
+    for path in (listed, plain):
+        repeat_guard._MEMO.clear()
+        allowed, _reason = repeat_guard.check(OUTSIDE, home=isolated_home,
+                                              profile="_example",
+                                              extra_corpus=[path])
+        assert not allowed, path.name
+
+
+def test_extra_corpus_skips_rows_outside_the_window(isolated_home: Path,
+                                                    tmp_path: Path) -> None:
+    old = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                        time.gmtime(time.time() - 400 * 86400))
+    outside = write_jsonl(tmp_path / "posts.jsonl",
+                          [{"text": OUTSIDE, "published_at": old}])
+    allowed, _reason = repeat_guard.check(OUTSIDE, home=isolated_home,
+                                          profile="_example", extra_corpus=[outside])
+    assert allowed
+
+
+def test_a_missing_extra_corpus_file_is_ignored(isolated_home: Path,
+                                                tmp_path: Path) -> None:
+    allowed, _reason = repeat_guard.check("brand new sentence here", home=isolated_home,
+                                          profile="_example",
+                                          extra_corpus=[tmp_path / "nope.jsonl"])
+    assert allowed
+
+
+def test_the_cache_signature_moves_when_an_extra_corpus_file_grows(
+        isolated_home: Path, tmp_path: Path) -> None:
+    """A signature keyed only on the queue would keep serving a stale index."""
+    outside = write_jsonl(tmp_path / "posts.jsonl", [{"text": "first"}])
+    before = repeat_guard._signature(isolated_home, [outside])
+    write_jsonl(outside, [{"text": "first"}, {"text": OUTSIDE}])
+    assert repeat_guard._signature(isolated_home, [outside]) != before
+    assert repeat_guard._signature(isolated_home) != before
+
+
+def test_config_merges_star_and_profile_corpus_entries() -> None:
+    from factory.config import Config
+
+    config = Config(extra_corpus={"*": ["~/all.jsonl"], "someone": ["~/one.jsonl"]})
+    assert [path.name for path in config.corpus_paths("someone")] \
+        == ["all.jsonl", "one.jsonl"]
+    assert [path.name for path in config.corpus_paths("other")] == ["all.jsonl"]
+    assert all(path.is_absolute() for path in config.corpus_paths("someone"))

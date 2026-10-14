@@ -165,36 +165,143 @@ def collect_items(home: Path, profile: str, *, now: float | None = None,
     return out
 
 
+TEXT_FIELDS = ("text", "body", "caption", "content")
+STAMP_FIELDS = ("published_at", "created_at", "scheduled_at", "date", "ts")
+
+
+def _rows_from(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, dict):
+        for key in ("items", "posts", "rows", "data"):
+            if isinstance(payload.get(key), list):
+                return [row for row in payload[key] if isinstance(row, dict)]
+        return [payload]
+    if isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    return []
+
+
+def read_external(path: Path, *, floor: float, source: str) -> list[tuple[float, str, str]]:
+    """One extra corpus file to `(epoch, source, text)` rows inside the window.
+
+    Handles the shape the ported pipelines already write: `.jsonl` one object per line,
+    `.json` as a list or `{"items": [...]}`, anything else as a single plain document.
+    A row with no parseable timestamp is kept at the window floor rather than dropped:
+    corpus with an unknown date is still wording that already went out.
+    """
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    rows: list[dict[str, Any]] = []
+    suffix = path.suffix.lower()
+    if suffix == ".jsonl":
+        for line in raw.splitlines():
+            if not line.strip():
+                continue
+            try:
+                parsed = json.loads(line)
+            except ValueError:
+                continue
+            rows.extend(_rows_from(parsed))
+    elif suffix == ".json":
+        try:
+            rows = _rows_from(json.loads(raw))
+        except ValueError:
+            rows = []
+    elif raw.strip():
+        return [(floor, source, raw)]
+    out: list[tuple[float, str, str]] = []
+    for row in rows:
+        text = ""
+        for field_name in TEXT_FIELDS:
+            candidate = row.get(field_name)
+            if isinstance(candidate, str) and candidate.strip():
+                text = candidate
+                break
+        if not text:
+            continue
+        stamp: float | None = None
+        for field_name in STAMP_FIELDS:
+            value = row.get(field_name)
+            if isinstance(value, (int, float)):
+                stamp = float(value)
+                break
+            if isinstance(value, str) and value.strip():
+                stamp = _epoch(value)
+                if stamp is not None:
+                    break
+        if stamp is None:
+            stamp = floor
+        if stamp < floor:
+            continue
+        out.append((stamp, source, text))
+    return out
+
+
+def _external_rows(paths: Iterable[Path], *, floor: float) -> list[tuple[float, str, str]]:
+    rows: list[tuple[float, str, str]] = []
+    for index, path in enumerate(paths, 1):
+        resolved = Path(path).expanduser()
+        if not resolved.is_file():
+            continue
+        rows.extend(read_external(resolved, floor=floor,
+                                  source=f"extra{index}:{resolved.name}"))
+    return rows
+
+
 def collect(home: Path, profile: str, *, now: float | None = None,
-            window_days: int | None = None) -> list[tuple[float, str, str]]:
-    """Published texts for the profile inside the window."""
-    return [(row["ts"], row["platform"], row["text"])
-            for row in collect_items(home, profile, now=now, window_days=window_days)]
+            window_days: int | None = None,
+            extra_corpus: Iterable[Path] = ()) -> list[tuple[float, str, str]]:
+    """Published texts for the profile inside the window, plus any extra corpus files."""
+    moment = time.time() if now is None else float(now)
+    floor = moment - (window_days or WINDOW_DAYS) * 86400
+    rows = [(row["ts"], row["platform"], row["text"])
+            for row in collect_items(home, profile, now=moment,
+                                     window_days=window_days)]
+    rows.extend(_external_rows(extra_corpus, floor=floor))
+    return rows
 
 
 def _cache_path(home: Path, profile: str) -> Path:
     return Path(home) / "state" / f"repeat_guard_cache.{profile}.json"
 
 
-def _signature(home: Path) -> str:
+def _signature(home: Path, extra_corpus: Iterable[Path] = ()) -> str:
+    """Count plus newest mtime across the queue and every extra corpus file.
+
+    The extra files have to be in here: a cache keyed only on the queue would keep
+    serving a stale index after an external corpus grew, and the guard would pass wording
+    that has already gone out.
+    """
     directory = _queue_dir(home)
     try:
         names = sorted(directory.glob("*.json"))
     except OSError:
-        return "-"
+        names = []
     newest = 0
     for path in names:
         try:
             newest = max(newest, path.stat().st_mtime_ns)
         except OSError:
             continue
-    return f"{len(names)}:{newest}"
+    extra: list[str] = []
+    for path in extra_corpus:
+        resolved = Path(path).expanduser()
+        try:
+            stat = resolved.stat()
+        except OSError:
+            extra.append(f"{resolved}:-")
+            continue
+        extra.append(f"{resolved}:{stat.st_mtime_ns}:{stat.st_size}")
+    return f"{len(names)}:{newest}|{'|'.join(extra)}"
 
 
 def corpus(home: Path, profile: str, *, now: float | None = None,
-           closers: Iterable[str] = ()) -> dict[str, Any]:
+           closers: Iterable[str] = (),
+           extra_corpus: Iterable[Path] = ()) -> dict[str, Any]:
     moment = time.time() if now is None else float(now)
-    signature = _signature(home)
+    extra = tuple(extra_corpus)
+    signature = _signature(home, extra)
     patterns = closer_patterns(closers)
     key = f"{home}|{profile}|{','.join(patterns)}"
     memo = _MEMO.get(key)
@@ -203,7 +310,7 @@ def corpus(home: Path, profile: str, *, now: float | None = None,
 
     index = _read_cache(home, profile, signature, moment)
     if index is None:
-        rows = collect(home, profile, now=moment)
+        rows = collect(home, profile, now=moment, extra_corpus=extra)
         seen: set[str] = set()
         unique: list[tuple[float, str, str]] = []
         for stamp, source, text in rows:
@@ -274,8 +381,9 @@ def _write_cache(home: Path, profile: str, signature: str,
 
 
 def judge(text: str, *, home: Path, profile: str, now: float | None = None,
-          closers: Iterable[str] = ()) -> dict[str, Any]:
-    index = corpus(home, profile, now=now, closers=closers)
+          closers: Iterable[str] = (),
+          extra_corpus: Iterable[Path] = ()) -> dict[str, Any]:
+    index = corpus(home, profile, now=now, closers=closers, extra_corpus=extra_corpus)
     rules: list[dict[str, Any]] = []
     normalized = normalize(text)
 
@@ -312,9 +420,11 @@ def judge(text: str, *, home: Path, profile: str, now: float | None = None,
 
 
 def check_detail(text: str, *, home: Path, profile: str, now: float | None = None,
-                 closers: Iterable[str] = ()) -> dict[str, Any]:
+                 closers: Iterable[str] = (),
+                 extra_corpus: Iterable[Path] = ()) -> dict[str, Any]:
     try:
-        return judge(text, home=home, profile=profile, now=now, closers=closers)
+        return judge(text, home=home, profile=profile, now=now, closers=closers,
+                     extra_corpus=extra_corpus)
     except Exception as error:  # noqa: BLE001 - a guard bug must not stop publishing
         return {"verdict": "PASS", "profile": profile, "rules": [],
                 "corpus": {"docs": 0, "window_days": WINDOW_DAYS, "sources": {}},
@@ -322,8 +432,10 @@ def check_detail(text: str, *, home: Path, profile: str, now: float | None = Non
 
 
 def check(text: str, *, home: Path, profile: str, now: float | None = None,
-          closers: Iterable[str] = ()) -> tuple[bool, str]:
-    report = check_detail(text, home=home, profile=profile, now=now, closers=closers)
+          closers: Iterable[str] = (),
+          extra_corpus: Iterable[Path] = ()) -> tuple[bool, str]:
+    report = check_detail(text, home=home, profile=profile, now=now, closers=closers,
+                          extra_corpus=extra_corpus)
     if report["verdict"] == "PASS":
         return ALLOW
     first = report["rules"][0]
@@ -331,12 +443,13 @@ def check(text: str, *, home: Path, profile: str, now: float | None = None,
 
 
 def check_blocks(blocks: Iterable[tuple[str, str]], *, home: Path, profile: str,
-                 now: float | None = None,
-                 closers: Iterable[str] = ()) -> tuple[bool, str]:
+                 now: float | None = None, closers: Iterable[str] = (),
+                 extra_corpus: Iterable[Path] = ()) -> tuple[bool, str]:
     for label, text in blocks:
         if not str(text or "").strip():
             continue
-        allowed, reason = check(text, home=home, profile=profile, now=now, closers=closers)
+        allowed, reason = check(text, home=home, profile=profile, now=now,
+                                closers=closers, extra_corpus=extra_corpus)
         if not allowed:
             return False, f"{label} {reason}"
     return ALLOW

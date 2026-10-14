@@ -240,6 +240,10 @@ def _profile(config: Config, args: argparse.Namespace) -> int:
                        indent=2, sort_keys=True), encoding="utf-8")
         (target / "forbidden.txt").write_text("\n".join(source.forbidden) + "\n",
                                               encoding="utf-8")
+        (target / "closers.txt").write_text("\n".join(source.closers) + "\n",
+                                            encoding="utf-8")
+        (target / "writer_rules.md").write_text(source.writer_rules + "\n",
+                                                encoding="utf-8")
         (target / "locale").write_text(source.locale + "\n", encoding="utf-8")
         credentials = target / "credentials.env"
         credentials.write_text("# add the keys listed in the README, one KEY=value per line\n",
@@ -355,9 +359,10 @@ def _gate_results(config: Config, *, body: str, profile: Profile,
             results.append((gate, terminal.PASS if forbidden.ok else terminal.FAIL,
                             ",".join(forbidden.hits)))
         elif gate == "repeat_guard":
-            allowed, reason = repeat_guard.check(body, home=config.home_path,
-                                                 profile=profile.name,
-                                                 closers=profile.closers)
+            allowed, reason = repeat_guard.check(
+                body, home=config.home_path, profile=profile.name,
+                closers=profile.closers,
+                extra_corpus=config.corpus_paths(profile.name))
             results.append((gate, terminal.PASS if allowed else terminal.FAIL, reason))
         elif gate == "cta_single":
             report = cta_single.check(body, rules)
@@ -652,7 +657,8 @@ def _tick(config: Config, *, dry_run: bool) -> int:
     def guard(body: str, *, profile: str) -> tuple[bool, str]:
         return repeat_guard.check(body, home=home, profile=profile,
                                   closers=profiles[profile].closers
-                                  if profile in profiles else ())
+                                  if profile in profiles else (),
+                                  extra_corpus=config.corpus_paths(profile))
 
     def publish(item: QueueItem, tracker: DeliveryTracker) -> tuple[bool, str, str | None]:
         if dry_run:
