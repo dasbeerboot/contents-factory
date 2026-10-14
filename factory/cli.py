@@ -404,7 +404,9 @@ def _publish(config: Config, args: argparse.Namespace) -> int:
     item = store.get(args.item)
     if item.platform != args.platform:
         raise FactoryError("PLATFORM_MISMATCH", args.platform)
-    publisher = publisher_for(args.platform, home)
+    publisher = publisher_for(args.platform, home,
+                              settings=_profile_of(config, item.profile)
+                              .platform(args.platform))
     if args.dry_run:
         result = publisher.publish(item, dry_run=True)
         print(i18n.get("publish.dry_run.header", config.ui_lang))
@@ -487,7 +489,8 @@ def _tick(config: Config, *, dry_run: bool) -> int:
     def publish(item: QueueItem, tracker: DeliveryTracker) -> tuple[bool, str, str | None]:
         if dry_run:
             return False, "DRY_RUN", None
-        publisher = publisher_for(item.platform, home)
+        publisher = publisher_for(item.platform, home,
+                                  settings=profile_for(item).platform(item.platform))
         result = publisher.publish(item, tracker=tracker)
         ledger.record(home, track="publish", kind=item.kind, platform=item.platform,
                       profile=item.profile, ref=item.id,

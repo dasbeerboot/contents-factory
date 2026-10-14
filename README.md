@@ -87,7 +87,7 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
 | `brand.md` | 로고·색·폰트·레퍼런스 우선순위 |
 | `voice.json` | `{provider, voice_id, model, stability, style}` |
 | `soul.json` | `{provider, soul_id, ref_image, identity_rules}` |
-| `platforms.json` | 플랫폼별 `{enabled, account_id, slots, late_policy, cta_rotation, daily_cap}` |
+| `platforms.json` | 플랫폼별 `{enabled, account_id, slots, late_policy, cta_rotation, daily_cap, connector_id, blog_id}` |
 | `forbidden.txt` | 금지어 한 줄 1개 |
 | `closers.txt` | 반복 감시할 고정 클로저 문구 |
 | `writer_rules.md` | 추가 작성 규칙 (system 프리픽스) |
@@ -101,13 +101,17 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
 `~/.contents-factory/profiles/<name>/credentials.env`, 한 줄에 `KEY=value`, chmod 600.
 값은 어떤 출력에도 안 나온다 (`--dry-run` 페이로드엔 `<REDACTED:KEY>`로 찍힌다).
 
+**시크릿 아닌 계정 ID는 여기 두지 않는다** (§10 결정6). TikTok `connector_id`와 네이버
+`blog_id`는 `platforms.json`에 있다 — 버전관리 대상이고, 없으면 `CONNECTOR_ID_MISSING` /
+`BLOG_ID_MISSING`으로 멈춘다.
+
 | 용도 | 필수 키 | 선택 키 |
 |---|---|---|
 | Threads | `THREADS_ACCESS_TOKEN`, `THREADS_USER_ID` | `THREADS_TOKEN_ISSUED_AT`(refresh가 기록) |
 | Instagram | `IG_ACCESS_TOKEN`, `IG_USER_ID` | `IG_TOKEN_ISSUED_AT`, `IG_APP_ID`, `IG_APP_SECRET` |
-| TikTok (Higgsfield MCP) | `HIGGSFIELD_MCP_TOKEN`, `TIKTOK_CONNECTOR_ID` | - |
+| TikTok (Higgsfield MCP) | `HIGGSFIELD_MCP_TOKEN` | - |
 | YouTube | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` | `YOUTUBE_ACCESS_TOKEN`(단기 폴백) |
-| 네이버 블로그 | `NAVER_BLOG_ID` | `FACTORY_ASIDE_BIN`(기본 `aside`) |
+| 네이버 블로그 | (토큰 없음) | `FACTORY_ASIDE_BIN`(기본 `aside`) |
 | 미디어 호스팅 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | `SUPABASE_BUCKET`(기본 `contents-factory`) |
 | 텍스트 생성 | `ANTHROPIC_API_KEY` | - |
 

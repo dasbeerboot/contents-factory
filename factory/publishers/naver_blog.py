@@ -27,11 +27,18 @@ SESSION_CODES = ("NAVER_SESSION_MISSING", "HOST_TAB_MISSING", "EDITOR_TAB_MISSIN
 
 class NaverBlogPublisher(Publisher):
     platform: ClassVar[str] = "naver_blog"
-    required_env: ClassVar[tuple[str, ...]] = ("NAVER_BLOG_ID",)
+    required_env: ClassVar[tuple[str, ...]] = ()
     text_limit: ClassVar[int] = 0
 
+    def blog_id(self, item: QueueItem) -> str:
+        """Blog id is a public account name, so it lives in platforms.json."""
+        identifier = str(self.settings(item.profile).blog_id or "").strip()
+        if not identifier:
+            raise FactoryError("BLOG_ID_MISSING", "naver_blog")
+        return identifier
+
     def job(self, item: QueueItem, env: dict[str, str]) -> dict[str, Any]:
-        blog_id = str(env.get("NAVER_BLOG_ID", "")).strip() or "<NAVER_BLOG_ID>"
+        blog_id = self.blog_id(item)
         title = item.extra.get("title", "").strip()
         if not title:
             raise FactoryError("TITLE_REQUIRED", "naver_blog")

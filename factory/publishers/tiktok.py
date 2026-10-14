@@ -112,8 +112,15 @@ def publish_token(raw: str, meta: dict[str, Any], structured: dict[str, Any]) ->
 
 class TikTokPublisher(Publisher):
     platform: ClassVar[str] = "tiktok"
-    required_env: ClassVar[tuple[str, ...]] = ("HIGGSFIELD_MCP_TOKEN", "TIKTOK_CONNECTOR_ID")
+    required_env: ClassVar[tuple[str, ...]] = ("HIGGSFIELD_MCP_TOKEN",)
     text_limit: ClassVar[int] = DESC_MAX
+
+    def connector(self, item: QueueItem) -> str:
+        """Connector id is an account identifier, so it lives in platforms.json."""
+        identifier = str(self.settings(item.profile).connector_id or "").strip()
+        if not identifier:
+            raise FactoryError("CONNECTOR_ID_MISSING", "tiktok")
+        return identifier
 
     def _media_type(self, item: QueueItem) -> str:
         if not item.media:
@@ -148,8 +155,9 @@ class TikTokPublisher(Publisher):
                            urls: list[str], *, redact: bool) -> dict[str, Any]:
         media_type = self._media_type(item)
         title, description = self._caption(item)
-        connector = (redacted("TIKTOK_CONNECTOR_ID") if redact
-                     else env["TIKTOK_CONNECTOR_ID"])
+        connector = self.connector(item)
+        if redact:
+            connector = f"{connector[:4]}***" if len(connector) > 6 else connector
         arguments: dict[str, Any] = {
             "connector_id": connector,
             "mode": item.extra.get("mode", "DIRECT_POST"),
@@ -214,8 +222,9 @@ class TikTokPublisher(Publisher):
     def send(self, item: QueueItem, env: dict[str, str],
              tracker: DeliveryTracker) -> str:
         client = McpClient(env["HIGGSFIELD_MCP_TOKEN"])
+        connector = self.connector(item)
         accounts, raw = client.call("tiktok_accounts", {})
-        if env["TIKTOK_CONNECTOR_ID"] not in str(accounts or raw):
+        if connector not in str(accounts or raw):
             raise FactoryError("TIKTOK_NOT_CONNECTED")
         media_type = self._media_type(item)
         hosted: list[str] = []

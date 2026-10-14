@@ -12,15 +12,19 @@ from factory.publishers import media_host, publisher_for, required_env
 from factory.publishers.base import PublishRequest
 from factory.publishers.naver_blog import NaverBlogPublisher
 from factory.publishers.youtube import usable_publish_at
+from factory.spec.profile import PlatformConfig
 from factory.spec.queue import Media
 from tests.conftest import make_item
 
 THREADS_ENV = {"THREADS_ACCESS_TOKEN": "secret-threads", "THREADS_USER_ID": "17890001"}
 IG_ENV = {"IG_ACCESS_TOKEN": "secret-ig", "IG_USER_ID": "17890002"}
-TIKTOK_ENV = {"HIGGSFIELD_MCP_TOKEN": "secret-mcp", "TIKTOK_CONNECTOR_ID": "conn-1"}
+TIKTOK_ENV = {"HIGGSFIELD_MCP_TOKEN": "secret-mcp"}
 YT_ENV = {"YOUTUBE_CLIENT_ID": "cid", "YOUTUBE_CLIENT_SECRET": "csec",
           "YOUTUBE_REFRESH_TOKEN": "rtok"}
-NAVER_ENV = {"NAVER_BLOG_ID": "examplelog"}
+NAVER_ENV: dict[str, str] = {}
+# Account ids are not secrets: they come from platforms.json (P0-SPEC §10 decision 6).
+TIKTOK_SETTINGS = PlatformConfig(enabled=True, connector_id="connector-1")
+NAVER_SETTINGS = PlatformConfig(enabled=True, blog_id="examplelog")
 SECRETS = ("secret-threads", "secret-ig", "secret-mcp", "csec", "rtok")
 
 
@@ -41,6 +45,8 @@ def test_registry_covers_five_platforms() -> None:
 
 def test_required_env_is_declared() -> None:
     assert required_env("threads") == ("THREADS_ACCESS_TOKEN", "THREADS_USER_ID")
+    assert required_env("tiktok") == ("HIGGSFIELD_MCP_TOKEN",)
+    assert required_env("naver_blog") == ()
     with pytest.raises(FactoryError):
         required_env("mastodon")
 
@@ -137,7 +143,8 @@ def test_instagram_requires_media(isolated_home: Path) -> None:
 
 
 def test_tiktok_dry_run_shape(isolated_home: Path) -> None:
-    publisher = publisher_for("tiktok", isolated_home, env=TIKTOK_ENV)
+    publisher = publisher_for("tiktok", isolated_home, env=TIKTOK_ENV,
+                              settings=TIKTOK_SETTINGS)
     item = make_item(platform="tiktok", kind="video", text="Hook line\nbody line",
                      media=[Media(path="/tmp/r.mp4", kind="video",
                                   public_url="https://cdn.test/r.mp4")])
@@ -151,14 +158,15 @@ def test_tiktok_dry_run_shape(isolated_home: Path) -> None:
     assert prepare["media_type"] == "VIDEO"
     assert prepare["title"] == "Hook line"
     assert prepare["video_url"] == "https://cdn.test/r.mp4"
-    assert prepare["connector_id"] == "<REDACTED:TIKTOK_CONNECTOR_ID>"
+    assert prepare["connector_id"] == "conn***"
     assert result.requests[3].fields["arguments"]["publish_token"] == (
         "<REDACTED:TIKTOK_PUBLISH_TOKEN>")
     assert_no_secrets(result)
 
 
 def test_tiktok_photo_mode(isolated_home: Path) -> None:
-    publisher = publisher_for("tiktok", isolated_home, env=TIKTOK_ENV)
+    publisher = publisher_for("tiktok", isolated_home, env=TIKTOK_ENV,
+                              settings=TIKTOK_SETTINGS)
     item = make_item(platform="tiktok", kind="image", text="Deck title",
                      media=[Media(path=f"/tmp/{index}.jpg",
                                   public_url=f"https://cdn.test/{index}.jpg")
@@ -224,7 +232,8 @@ def test_youtube_requires_video(isolated_home: Path) -> None:
 
 
 def test_naver_dry_run_job(isolated_home: Path) -> None:
-    publisher = publisher_for("naver_blog", isolated_home, env=NAVER_ENV)
+    publisher = publisher_for("naver_blog", isolated_home, env=NAVER_ENV,
+                              settings=NAVER_SETTINGS)
     item = make_item(platform="naver_blog", text="## Title\nx\n\n## Body\nbody\n\n## Tags\n#a",
                      scheduled_at="2026-10-15T12:07:00Z",
                      extra={"title": "A post title", "category": "Notes", "tags": "a,b"})
@@ -239,8 +248,26 @@ def test_naver_dry_run_job(isolated_home: Path) -> None:
     assert job["markdown_chars"] > 0
 
 
+def test_tiktok_without_connector_id_fails(isolated_home: Path) -> None:
+    publisher = publisher_for("tiktok", isolated_home, env=TIKTOK_ENV,
+                              settings=PlatformConfig(enabled=True))
+    item = make_item(platform="tiktok", kind="video", text="Hook",
+                     media=[Media(path="/tmp/r.mp4", kind="video",
+                                  public_url="https://cdn.test/r.mp4")])
+    assert publisher.publish(item, dry_run=True).code == "CONNECTOR_ID_MISSING"
+
+
+def test_naver_without_blog_id_fails(isolated_home: Path) -> None:
+    publisher = publisher_for("naver_blog", isolated_home, env=NAVER_ENV,
+                              settings=PlatformConfig(enabled=True))
+    item = make_item(platform="naver_blog", extra={"title": "t", "category": "c",
+                                                   "tags": "a"})
+    assert publisher.publish(item, dry_run=True).code == "BLOG_ID_MISSING"
+
+
 def test_naver_requires_category_and_tags(isolated_home: Path) -> None:
-    publisher = publisher_for("naver_blog", isolated_home, env=NAVER_ENV)
+    publisher = publisher_for("naver_blog", isolated_home, env=NAVER_ENV,
+                              settings=NAVER_SETTINGS)
     item = make_item(platform="naver_blog", extra={"title": "t"})
     assert publisher.publish(item, dry_run=True).code == "CATEGORY_REQUIRED"
 
@@ -291,7 +318,7 @@ def test_naver_node_dry_run_plan(isolated_home: Path) -> None:
     """The vendored node script must produce a plan without touching the browser."""
     if shutil.which("node") is None:
         pytest.skip("node is not installed")
-    publisher = NaverBlogPublisher(isolated_home, env=NAVER_ENV)
+    publisher = NaverBlogPublisher(isolated_home, env=NAVER_ENV, settings=NAVER_SETTINGS)
     job = {"blogId": "examplelog", "title": "One cached header cost three days",
            "category": "Notes", "tags": ["build", "postmortem"],
            "publishAt": "2026-10-20T21:00",
@@ -310,7 +337,7 @@ def test_naver_node_dry_run_plan(isolated_home: Path) -> None:
 def test_naver_node_rejects_bad_publish_minute(isolated_home: Path) -> None:
     if shutil.which("node") is None:
         pytest.skip("node is not installed")
-    publisher = NaverBlogPublisher(isolated_home, env=NAVER_ENV)
+    publisher = NaverBlogPublisher(isolated_home, env=NAVER_ENV, settings=NAVER_SETTINGS)
     job = {"blogId": "examplelog", "title": "t", "category": "Notes", "tags": ["a"],
            "publishAt": "2026-10-20T21:07",
            "markdown": "## Title\nt\n\n## Body\nb\n\n## Tags\n#a\n"}
@@ -361,7 +388,7 @@ def test_naver_cors_server_serves_the_bundle(isolated_home: Path) -> None:
 def test_naver_long_document_is_no_longer_capped(isolated_home: Path) -> None:
     if shutil.which("node") is None:
         pytest.skip("node is not installed")
-    publisher = NaverBlogPublisher(isolated_home, env=NAVER_ENV)
+    publisher = NaverBlogPublisher(isolated_home, env=NAVER_ENV, settings=NAVER_SETTINGS)
     body = "\n\n".join(f"Paragraph {index} carries enough words to grow the bundle."
                        for index in range(900))
     job = {"blogId": "examplelog", "title": "Long post", "category": "Notes",

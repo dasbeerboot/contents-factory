@@ -16,6 +16,12 @@ PLATFORMS = ("threads", "instagram", "tiktok", "youtube", "naver_blog")
 
 
 class PlatformConfig(BaseModel):
+    """Non-secret platform settings. Tokens never live here, only in credentials.env.
+
+    `connector_id` (tiktok) and `blog_id` (naver_blog) are account identifiers, not
+    secrets, so P0-SPEC §10 decision 6 keeps them in version controlled profile config.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
@@ -24,6 +30,15 @@ class PlatformConfig(BaseModel):
     late_policy: LatePolicy = "carry_once"
     cta_rotation: list[str] = Field(default_factory=list)
     daily_cap: int = Field(default=1, ge=0, le=50)
+    connector_id: str | None = None
+    blog_id: str | None = None
+
+    @field_validator("blog_id")
+    @classmethod
+    def _blog_shape(cls, value: str | None) -> str | None:
+        if value is not None and not re.match(r"^[A-Za-z0-9_-]{3,40}$", value):
+            raise ValueError("blog_id must be [A-Za-z0-9_-]{3,40}")
+        return value
 
     @field_validator("slots")
     @classmethod

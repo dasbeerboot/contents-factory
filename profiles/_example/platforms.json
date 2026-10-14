@@ -1,46 +1,59 @@
 {
-  "threads": {
-    "enabled": true,
+  "instagram": {
     "account_id": null,
-    "slots": ["12:00Z", "23:00Z"],
+    "cta_rotation": [],
+    "daily_cap": 1,
+    "enabled": false,
     "late_policy": "carry_once",
+    "slots": [
+      "01:00Z"
+    ]
+  },
+  "naver_blog": {
+    "account_id": null,
+    "blog_id": null,
+    "cta_rotation": [],
+    "daily_cap": 1,
+    "enabled": false,
+    "late_policy": "carry_once",
+    "slots": [
+      "02:00Z"
+    ]
+  },
+  "threads": {
+    "account_id": null,
     "cta_rotation": [
       "Tell me which part you would have done differently.",
       "If you have shipped this, what broke first?",
       "Steal the checklist, skip the story."
     ],
-    "daily_cap": 2
-  },
-  "instagram": {
-    "enabled": false,
-    "account_id": null,
-    "slots": ["01:00Z"],
+    "daily_cap": 2,
+    "enabled": true,
     "late_policy": "carry_once",
-    "cta_rotation": [],
-    "daily_cap": 1
+    "slots": [
+      "12:00Z",
+      "23:00Z"
+    ]
   },
   "tiktok": {
-    "enabled": false,
     "account_id": null,
-    "slots": ["12:00Z"],
-    "late_policy": "drop",
+    "connector_id": null,
     "cta_rotation": [],
-    "daily_cap": 1
+    "daily_cap": 1,
+    "enabled": false,
+    "late_policy": "drop",
+    "slots": [
+      "12:00Z"
+    ]
   },
   "youtube": {
-    "enabled": false,
     "account_id": null,
-    "slots": ["01:00Z"],
-    "late_policy": "carry_once",
     "cta_rotation": [],
-    "daily_cap": 1
-  },
-  "naver_blog": {
+    "daily_cap": 1,
     "enabled": false,
-    "account_id": null,
-    "slots": ["02:00Z"],
     "late_policy": "carry_once",
-    "cta_rotation": [],
-    "daily_cap": 1
+    "slots": [
+      "01:00Z"
+    ]
   }
 }

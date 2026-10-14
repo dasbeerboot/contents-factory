@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..errors import FactoryError
+from ..spec.profile import PlatformConfig
 from .base import Publisher, PublishRequest, PublishResult
 from .instagram import InstagramPublisher
 from .naver_blog import NaverBlogPublisher
@@ -20,11 +21,12 @@ REGISTRY: dict[str, type[Publisher]] = {
 }
 
 
-def publisher_for(platform: str, home: Path, *, env: dict[str, str] | None = None) -> Publisher:
+def publisher_for(platform: str, home: Path, *, env: dict[str, str] | None = None,
+                  settings: PlatformConfig | None = None) -> Publisher:
     cls = REGISTRY.get(platform)
     if cls is None:
         raise FactoryError("PLATFORM_UNKNOWN", str(platform)[:32])
-    return cls(home, env=env)
+    return cls(home, env=env, settings=settings)
 
 
 def required_env(platform: str) -> tuple[str, ...]:

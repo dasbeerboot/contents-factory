@@ -10,8 +10,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Protocol
 
+from ..config import repo_root
 from ..credentials import load_profile_env, redacted, require
 from ..errors import FactoryError, http_code, scrub
+from ..spec.profile import PlatformConfig, load_profile
 from ..spec.queue import QueueItem
 
 TIMEOUT_SECONDS = 60
@@ -113,14 +115,26 @@ class Publisher(ABC):
     required_env: ClassVar[tuple[str, ...]] = ()
     text_limit: ClassVar[int] = 0
 
-    def __init__(self, home: Path, *, env: dict[str, str] | None = None) -> None:
+    def __init__(self, home: Path, *, env: dict[str, str] | None = None,
+                 settings: PlatformConfig | None = None) -> None:
         self.home = Path(home)
         self._env_override = env
+        self._settings = settings
 
     def env(self, profile: str) -> dict[str, str]:
         if self._env_override is not None:
             return self._env_override
         return load_profile_env(self.home, profile)
+
+    def settings(self, profile: str) -> PlatformConfig:
+        """Non-secret platform config from platforms.json (account ids, slots, caps)."""
+        if self._settings is not None:
+            return self._settings
+        try:
+            loaded = load_profile(profile, home=self.home, repo=repo_root())
+        except FactoryError:
+            return PlatformConfig()
+        return loaded.platform(self.platform)
 
     def token(self, profile: str, key: str) -> str:
         values = self.env(profile)
