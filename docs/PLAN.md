@@ -35,7 +35,7 @@ contents-factory/
     spec/             brief 스키마 (text / image / video / publish)
     generators/       text(Anthropic, 캐싱 규칙), image(Higgsfield CLI), video(Seedance+ElevenLabs+ffmpeg)
     gates/            repeat_guard, forbidden_words, caption_safe_zone, limb_motion, bg_motion, stt_wpm, identity
-    publishers/       threads, instagram, tiktok(Higgsfield 경유), youtube, (naver_blog 옵션)
+    publishers/       threads, instagram, tiktok, youtube, naver_blog  (5종 모두 필수, 주원 2026-10-14)
     queue/            큐 CRUD 소유 CLI (손글씨 금지 원칙 그대로)
     scheduler/        launchd(mac)·cron(linux) 생성기, tick 러너
     i18n/             ko / en 질문·메시지 사전
@@ -58,7 +58,7 @@ contents-factory/
 | 영상 | saju-shortform `gen3/reelv1/*` (mkprompts_stills·hf·tts·captions·assemble·stt·gates), saju-threads `docs/video-briefs/STILL-GATE.md`, `VIDEO-INFRA.md`, gen.py --check | generators/video 단계 모듈 + gates/* + rules/video-rules.md (1테이크 150cr 캡, 시선·구도, 세이프존, 소리 검수) |
 | 발행 | `publish.sh`, `ig_publish.sh`, `tiktok_publish.py`, `yt_upload.py`, `queue_autopub.py`, `token_refresh.sh`, launchd plist 묶음 | publishers/* + scheduler + rules/publishing-rules.md (슬롯 시각, autopub 디폴트, 무응답 처리, 지각분 무상한 차단) |
 | 리뷰 전달 | `mkreview.py` (sendVideo 인라인) | review 채널 플러그인 (terminal 기본, telegram 옵션) |
-| SEO 글 | saju-website·pilot `SEO-GEO-AGENT.md`, `geo_audit.py`, `fanout_coverage.py`, pilot `scripts/naver/publish.mjs` | 2차 범위 (writing-factory "long-form/blog" 모드) |
+| 블로그·SEO 글 | saju-website·pilot `SEO-GEO-AGENT.md`, `geo_audit.py`, `fanout_coverage.py`, pilot `docs/31-seo-blog.md`, `scripts/naver/publish.mjs`·`md_to_document.mjs` | writing-factory "blog" 모드 + publishers/naver_blog (브라우저 자동화) |
 
 ## 4. 인터뷰 설계 (각 팩토리 공통 골격)
 
@@ -83,6 +83,7 @@ contents-factory/
   - Threads/IG: Meta 앱 필요. 개발 모드 앱은 테스터 역할 계정만 OAuth 가능. 공개 사용은 앱 심사 통과 또는 사용자 본인 앱(BYO).
   - TikTok: Higgsfield MCP `tiktok_connect` 경유가 현실적. 직접 API는 미심사 앱이 비공개 게시만 가능.
   - YouTube: 미검증 GCP 앱 업로드는 private 고정. BYO GCP 프로젝트 전제.
+  - 네이버 블로그: 공개 글쓰기 API 없음. pilot `scripts/naver/publish.mjs`는 aside 브라우저(로그인된 크롬 탭)로 에디터를 조작해 발행 (2026-09 실측). 팩토리에서는 Playwright 영속 프로필 또는 aside 중 택1로 이식. 사용자가 네이버 로그인을 한 번 해두는 전제.
 
 ## 6. 언어
 
@@ -94,10 +95,10 @@ contents-factory/
 
 | 단계 | 내용 |
 |---|---|
-| P0 | 레포 뼈대, /setup, /profile, /writing-factory(Threads·IG 글), gates(repeat·forbidden), queue, Threads publisher, 스케줄러, ko/en |
-| P1 | /image-factory (Higgsfield, 상품컷·카드뉴스·OG), IG publisher, 텔레 리뷰 |
-| P2 | /video-factory (토킹헤드·POV, Soul·Seedance·ElevenLabs·게이트), TikTok·YouTube publisher |
-| P3 | long-form/blog 모드(SEO·네이버), 레포 공개 정리(예시 프로필·문서·라이선스) |
+| P0 | 레포 뼈대, /setup, /profile, /writing-factory(Threads·IG 글 + 블로그 long-form), gates(repeat·forbidden), queue, 스케줄러, ko/en, publishers 5종(Threads·IG·TikTok·YouTube·네이버) 골격 이식 |
+| P1 | /image-factory (Higgsfield, 상품컷·카드뉴스·OG·썸네일), 텔레 리뷰 채널 |
+| P2 | /video-factory (토킹헤드·POV, Soul·Seedance·ElevenLabs·게이트) |
+| P3 | SEO/GEO 감사 모듈, 레포 공개 정리(예시 프로필·문서·라이선스) |
 
 ## 8. 미확정 질문 (답 필요)
 
