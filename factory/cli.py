@@ -21,7 +21,7 @@ from .review import terminal
 from .scheduler import cron, launchd, tick, token_refresh
 from .spec.brief import (Output, load_brief, new_brief_id, parse_brief, save_brief,
                          utc_now)
-from .spec.format import catalogue, load_format
+from .spec.format import FormatSpec, catalogue, load_format
 from .spec.profile import Profile, list_profiles, load_profile
 from .spec.queue import QueueItem
 
@@ -118,8 +118,13 @@ def build_parser() -> argparse.ArgumentParser:
     i18n_missing = i18n_actions.add_parser("missing")
     i18n_missing.add_argument("--lang", default="ko")
 
-    formats = commands.add_parser("formats", help="list the format catalogue")
+    formats = commands.add_parser("formats",
+                                  help="list the catalogue, or a format's questions")
     formats.add_argument("--kind", choices=["text", "image", "video"])
+    formats.add_argument("--format", dest="format_name",
+                         help="with --kind, print that format's interview questions")
+    formats.add_argument("--lang", choices=["ko", "en"],
+                         help="question wording language, defaults to ui_lang")
 
     return parser
 
@@ -265,26 +270,46 @@ def _brief(config: Config, args: argparse.Namespace) -> int:
     raise FactoryError("BRIEF_COMMAND_UNKNOWN")
 
 
+IMPLEMENTED_GATES: tuple[str, ...] = ("limits", "forbidden_words", "repeat_guard")
+TEXT_DEFAULT_GATES: tuple[str, ...] = ("limits", "forbidden_words", "repeat_guard")
+
+
+def _gate_plan(spec: FormatSpec | None, kind: str,
+               selected: Sequence[str]) -> list[str]:
+    """Ordered gate list: explicit selection wins, else the format's own list plus the
+    mandatory text trio. repeat_guard is never dropped by a format omitting it."""
+    if selected:
+        return list(dict.fromkeys(selected))
+    planned = list(spec.gates) if spec else []
+    if kind == "text":
+        planned.extend(TEXT_DEFAULT_GATES)
+    elif not planned:
+        planned.extend(TEXT_DEFAULT_GATES)
+    return list(dict.fromkeys(planned))
+
+
 def _gate_results(config: Config, *, body: str, profile: Profile,
                   kind: str, format_name: str | None,
-                  selected: Sequence[str]) -> list[tuple[str, bool, str]]:
-    wanted = set(selected) if selected else set()
-    rules: dict[str, object] = {}
-    if format_name:
-        rules = load_format(kind, format_name).limits
-    results: list[tuple[str, bool, str]] = []
-
-    if not wanted or "limits" in wanted:
-        report = limits.check(body, rules)
-        results.append(("limits", report.ok, ",".join(report.violations)))
-    if not wanted or "forbidden_words" in wanted:
-        forbidden = forbidden_words.check(body, profile.forbidden)
-        results.append(("forbidden_words", forbidden.ok, ",".join(forbidden.hits)))
-    if not wanted or "repeat_guard" in wanted:
-        allowed, reason = repeat_guard.check(body, home=config.home_path,
-                                            profile=profile.name,
-                                            closers=profile.closers)
-        results.append(("repeat_guard", allowed, reason))
+                  selected: Sequence[str]) -> list[tuple[str, str, str]]:
+    spec = load_format(kind, format_name) if format_name else None
+    rules = spec.limits if spec else {}
+    results: list[tuple[str, str, str]] = []
+    for gate in _gate_plan(spec, kind, selected):
+        if gate == "limits":
+            report = limits.check(body, rules)
+            detail = ",".join(report.violations + report.advisories)
+            results.append((gate, terminal.PASS if report.ok else terminal.FAIL, detail))
+        elif gate == "forbidden_words":
+            forbidden = forbidden_words.check(body, profile.forbidden)
+            results.append((gate, terminal.PASS if forbidden.ok else terminal.FAIL,
+                            ",".join(forbidden.hits)))
+        elif gate == "repeat_guard":
+            allowed, reason = repeat_guard.check(body, home=config.home_path,
+                                                 profile=profile.name,
+                                                 closers=profile.closers)
+            results.append((gate, terminal.PASS if allowed else terminal.FAIL, reason))
+        else:
+            results.append((gate, terminal.SKIP, "NOT_IMPLEMENTED"))
     return results
 
 
@@ -309,7 +334,8 @@ def _gate(config: Config, args: argparse.Namespace) -> int:
                                 format_name=format_name, selected=args.gate)
         print(f"[{label}]")
         print(terminal.gate_table(results, lang=config.ui_lang))
-        failed = failed or any(not ok for _name, ok, _reason in results)
+        failed = failed or any(status == terminal.FAIL
+                               for _name, status, _detail in results)
     return EXIT_ERROR if failed else EXIT_OK
 
 
@@ -347,13 +373,16 @@ def _gen(config: Config, args: argparse.Namespace) -> int:
         results = _gate_results(config, body=draft.text, profile=profile, kind=brief.kind,
                                 format_name=brief.format, selected=())
         outputs.append({"text": draft.text,
-                        "gates": {name: ("PASS" if ok else reason)
-                                  for name, ok, reason in results},
+                        "gates": {name: (status if status == terminal.PASS
+                                         else f"{status}:{detail}")
+                                  for name, status, detail in results},
                         "chosen": False})
         ledger.record(home, track="text", kind=brief.format, model=generator.model,
                       tokens=draft.usage.total_input + draft.usage.output_tokens,
                       profile=brief.profile, ref=brief.id,
-                      result="ok" if all(ok for _n, ok, _r in results) else "gate_fail")
+                      result="ok" if all(status != terminal.FAIL
+                                         for _n, status, _d in results)
+                      else "gate_fail")
     brief.outputs = [Output(text=str(entry["text"]), gates=dict(entry["gates"]),
                             chosen=False) for entry in outputs]
     save_brief(home, brief)
@@ -490,6 +519,18 @@ def _i18n(config: Config, args: argparse.Namespace) -> int:
 
 
 def _formats(config: Config, args: argparse.Namespace) -> int:
+    if args.format_name:
+        if not args.kind:
+            raise FactoryError("KIND_REQUIRED", "pass --kind with --format")
+        spec = load_format(args.kind, args.format_name)
+        lang = args.lang or config.ui_lang
+        print(json.dumps({"format": f"{spec.kind}/{spec.name}", "lang": lang,
+                          "free": spec.is_free, "platforms": spec.platforms,
+                          "gates": spec.gates, "limits": spec.limits,
+                          "credit_cap_per_item": spec.credit_cap_per_item,
+                          "questions": spec.interview(lang)},
+                         ensure_ascii=False, indent=2, sort_keys=True))
+        return EXIT_OK
     print(json.dumps(catalogue(args.kind), ensure_ascii=False, indent=2, sort_keys=True))
     return EXIT_OK
 

@@ -1,0 +1,46 @@
+name: threads_post
+kind: text
+platforms: [threads]
+questions:
+  - key: text.threads.topic
+    question_ko: "무슨 주제나 상황을 Threads 글로 바꿀까요?"
+    question_en: "What topic or situation should become the Threads post?"
+  - key: text.threads.audience
+    question_ko: "첫 줄에서 누구를 바로 알아보게 만들까요?"
+    question_en: "Who should recognize themselves in the first line?"
+  - key: text.threads.structure
+    question_ko: "원하는 구조가 있나요? 예: 관찰-원리-질문, 리스트, 짧은 펀치라인."
+    question_en: "Do you want a structure, such as observation-principle-question, list, or short punchline?"
+  - key: text.threads.domain_term
+    question_ko: "넣어도 되는 전문 용어가 있다면 1개만 적어주세요. 없으면 비워도 됩니다."
+    question_en: "Name at most one domain term that may appear. Leave blank if none."
+  - key: text.threads.cta
+    question_ko: "댓글, 저장, 공유, 프로필 방문 중 어떤 행동 하나를 유도할까요?"
+    question_en: "Which single action should this invite: reply, save, share, or profile visit?"
+  - key: text.threads.avoid
+    question_ko: "절대 쓰지 말아야 할 표현이나 각도는 무엇인가요?"
+    question_en: "What words, claims, or angles must be avoided?"
+prompt_template: |
+  Write {{count}} Threads posts for {{profile_name}} in {{content_lang}}.
+  Topic: {{topic}}
+  Audience: {{audience}}
+  Structure: {{structure}}
+  Start with a concrete personal observation in the first 7 words.
+  Do not start with a lecture, definition, mechanism, or platform link.
+  Use at most one domain term: {{domain_term}}.
+  If the domain term appears, translate it into an everyday result in the same sentence.
+  Keep the voice human, spoken, confident, and non-fatalistic.
+  CTA: {{cta}}
+  Avoid: {{avoid}}
+  Return one complete post per item.
+  Each post must be under {{max_chars}} characters.
+gates: [limits, forbidden_words, repeat_guard, voice_check, cta_single]
+limits:
+  max_chars: 500
+  hashtags_max: 3
+  emoji_max: 1
+  external_links: false
+  cta_max: 1
+  first_line_words_max: 7
+  domain_terms_max: 1
+  thread_attachment_chars_max: 10000

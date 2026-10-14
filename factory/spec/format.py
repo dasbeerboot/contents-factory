@@ -1,5 +1,10 @@
 """Format catalogue loader. The yaml files themselves live in factory/formats/<kind>/.
 
+The yaml is canonical (P0-SPEC §2): the loader bends to it, not the other way round.
+That means `name` and `kind` are inferred from the path when a file omits them (free.yaml
+does), `limits` stays a free-form dict because every kind carries its own keys, and
+`questions` entries may carry ready-made ko/en wording that beats the i18n catalogue.
+
 Override the search root with FACTORY_FORMATS_DIR; tests point it at a fixture tree.
 """
 from __future__ import annotations
@@ -17,6 +22,7 @@ from .profile import PLATFORMS
 
 FORMATS_ENV = "FACTORY_FORMATS_DIR"
 FREE_FORMAT = "free"
+KINDS: tuple[str, ...] = ("text", "image", "video")
 
 
 class Question(BaseModel):
@@ -24,6 +30,16 @@ class Question(BaseModel):
 
     key: str
     required: bool = True
+    question_ko: str = ""
+    question_en: str = ""
+
+    def prompt(self, lang: str) -> str:
+        """Wording for this question. The yaml text wins; i18n key is the fallback."""
+        if lang == "ko" and self.question_ko:
+            return self.question_ko
+        if lang == "en" and self.question_en:
+            return self.question_en
+        return self.question_ko or self.question_en or self.key
 
 
 class FormatSpec(BaseModel):
@@ -48,12 +64,40 @@ class FormatSpec(BaseModel):
             raise ValueError(f"unknown platforms: {','.join(unknown)}")
         return value
 
+    @field_validator("duration_s")
+    @classmethod
+    def _duration_pair(cls, value: list[int] | None) -> list[int] | None:
+        if value is None:
+            return None
+        if len(value) != 2 or value[0] > value[1] or value[0] < 0:
+            raise ValueError("duration_s must be [min, max] seconds")
+        return value
+
     @property
     def is_free(self) -> bool:
         return self.name == FREE_FORMAT or not self.prompt_template.strip()
 
     def question_keys(self) -> list[str]:
         return [question.key for question in self.questions]
+
+    def interview(self, lang: str) -> list[dict[str, str]]:
+        return [{"key": question.key, "question": question.prompt(lang),
+                 "required": "true" if question.required else "false"}
+                for question in self.questions]
+
+    def safe_zone(self) -> dict[str, int] | None:
+        for key in ("safe_zone_px", "center_safe_zone_px"):
+            zone = self.limits.get(key)
+            if isinstance(zone, dict) and {"x_min", "x_max", "y_min", "y_max"} <= set(zone):
+                return {name: int(zone[name]) for name in
+                        ("x_min", "x_max", "y_min", "y_max")}
+        return None
+
+    def frame(self) -> tuple[int, int] | None:
+        width, height = self.limits.get("width_px"), self.limits.get("height_px")
+        if isinstance(width, int) and isinstance(height, int):
+            return width, height
+        return None
 
 
 def formats_root() -> Path:
@@ -75,14 +119,27 @@ def load_format(kind: str, name: str) -> FormatSpec:
         raise FactoryError("FORMAT_MISSING", f"{kind}/{name}") from None
     except yaml.YAMLError:
         raise FactoryError("FORMAT_INVALID", f"{kind}/{name}") from None
+    return parse_format(raw, kind=kind, name=name)
+
+
+def parse_format(raw: object, *, kind: str, name: str) -> FormatSpec:
     if not isinstance(raw, dict):
         raise FactoryError("FORMAT_INVALID", f"{kind}/{name}")
-    questions = raw.get("questions") or []
+    data = dict(raw)
+    data.setdefault("name", name)
+    data.setdefault("kind", kind)
+    if data.get("gates") is None:
+        data["gates"] = []
+    if data.get("platforms") is None:
+        data["platforms"] = []
+    questions = data.get("questions") or []
     if isinstance(questions, list):
-        raw["questions"] = [entry if isinstance(entry, dict) else {"key": str(entry)}
-                            for entry in questions]
+        data["questions"] = [entry if isinstance(entry, dict) else {"key": str(entry)}
+                             for entry in questions]
+    if data["name"] != name or data["kind"] != kind:
+        raise FactoryError("FORMAT_PATH_MISMATCH", f"{kind}/{name}")
     try:
-        return FormatSpec(**raw)
+        return FormatSpec(**data)
     except ValueError:
         raise FactoryError("FORMAT_INVALID", f"{kind}/{name}") from None
 
@@ -90,11 +147,18 @@ def load_format(kind: str, name: str) -> FormatSpec:
 def catalogue(kind: str | None = None) -> dict[str, list[str]]:
     root = formats_root()
     out: dict[str, list[str]] = {}
-    kinds = [kind] if kind else ["text", "image", "video"]
-    for entry in kinds:
+    for entry in ([kind] if kind else list(KINDS)):
         directory = root / entry
         if not directory.is_dir():
             out[entry] = []
             continue
         out[entry] = sorted(path.stem for path in directory.glob("*.yaml"))
     return out
+
+
+def load_all() -> dict[str, FormatSpec]:
+    found: dict[str, FormatSpec] = {}
+    for kind, names in catalogue().items():
+        for name in names:
+            found[f"{kind}/{name}"] = load_format(kind, name)
+    return found

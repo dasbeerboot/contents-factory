@@ -1,0 +1,48 @@
+name: product_shot
+kind: image
+platforms: [instagram, naver_blog]
+aspect: "4:5"
+questions:
+  - key: image.product.input_roles
+    question_ko: "참조 이미지별 역할을 정해주세요. 예: 제품 원본, 로고, 재질 레퍼런스."
+    question_en: "Define each reference image role, such as product source, logo, or material reference."
+  - key: image.product.product_name
+    question_ko: "제품명 또는 제품 유형은 무엇인가요?"
+    question_en: "What is the product name or product type?"
+  - key: image.product.product_invariants
+    question_ko: "절대 바뀌면 안 되는 제품 구조, 색상, 로고, 재질은 무엇인가요?"
+    question_en: "What product structure, color, logo, or material must stay unchanged?"
+  - key: image.product.edit_request
+    question_ko: "이번 이미지에서 정확히 무엇만 바꿀까요?"
+    question_en: "Exactly what should change in this image?"
+  - key: image.product.logo_rule
+    question_ko: "로고나 문구를 넣는다면 위치, 크기, 색상 규칙은 무엇인가요?"
+    question_en: "If adding logo or text, what are the placement, size, and color rules?"
+  - key: image.product.avoid
+    question_ko: "절대 생기면 안 되는 왜곡, 오브젝트, 글자는 무엇인가요?"
+    question_en: "What distortions, objects, or text must never appear?"
+prompt_template: |
+  Use case: product-mockup / precise-object-edit.
+  Asset type: ecommerce catalog product image, {{aspect}} portrait.
+  Input images: {{input_roles}}
+  Primary request: {{edit_request}}
+  Scene/backdrop: {{background}}
+  Subject: the single exact {{product_name}} from the authoritative reference.
+  Product invariants: preserve {{product_invariants}}.
+  Style/medium: photorealistic premium ecommerce product photography.
+  Composition/framing: centered product, full product visible, generous even margin, {{aspect}} portrait.
+  Lighting/mood: soft neutral studio lighting with a natural contact shadow.
+  Logo or text rule: {{logo_rule}}
+  Constraints: change only the requested areas. Preserve all other visible product geometry, color, material, seams, hardware, wrinkles, camera angle, lighting, and crop as closely as possible.
+  Avoid: {{avoid}}
+gates: [product_identity, text_accuracy, logo_geometry, crop_margin, artifact_scan]
+limits:
+  width_px: 1080
+  height_px: 1350
+  format: jpeg
+  instagram_image_aspect_range: ["4:5", "1.91:1"]
+  instagram_file_mb_max: 8
+  product_count: 1
+  readable_unintended_text_max: 0
+  watermark_allowed: false
+credit_cap_per_item: 10

@@ -1,0 +1,46 @@
+name: og
+kind: image
+platforms: [naver_blog, threads]
+aspect: "1.91:1"
+questions:
+  - key: image.og.page_topic
+    question_ko: "공유될 페이지나 글의 핵심 주제는 무엇인가요?"
+    question_en: "What is the core topic of the page or article being shared?"
+  - key: image.og.headline
+    question_ko: "이미지에 들어갈 짧은 제목은 무엇인가요?"
+    question_en: "What short headline should appear in the image?"
+  - key: image.og.subline
+    question_ko: "보조 문구가 필요하다면 무엇인가요?"
+    question_en: "What supporting line should appear, if any?"
+  - key: image.og.brand_signal
+    question_ko: "브랜드 신호는 로고, 색, 오브젝트 중 무엇으로 넣을까요?"
+    question_en: "Should the brand signal be a logo, color, or object?"
+  - key: image.og.visual
+    question_ko: "배경이나 대표 이미지는 어떤 방향이 좋을까요?"
+    question_en: "What background or key visual direction should be used?"
+  - key: image.og.avoid
+    question_ko: "공유 이미지에 피해야 할 문구나 요소는 무엇인가요?"
+    question_en: "What words or elements should the share image avoid?"
+prompt_template: |
+  Create an Open Graph share image for {{profile_name}}.
+  Page topic: {{page_topic}}
+  Headline: {{headline}}
+  Subline: {{subline}}
+  Brand signal: {{brand_signal}}
+  Visual direction: {{visual}}
+  Avoid: {{avoid}}
+  Use {{aspect}} composition at {{width_px}}x{{height_px}}.
+  Keep the headline large, short, and readable in link previews.
+  Do not add body copy.
+  Keep key text away from all edges.
+  Return one image prompt and export metadata.
+gates: [text_legibility, crop_margin, contrast, brand_consistency]
+limits:
+  width_px: 1200
+  height_px: 630
+  headline_chars_max: 72
+  subline_chars_max: 96
+  safe_margin_px: 80
+  text_coverage_max_pct: 22
+  format: jpeg
+credit_cap_per_item: 8

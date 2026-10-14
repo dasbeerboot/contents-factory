@@ -1,0 +1,51 @@
+name: textcard
+kind: video
+platforms: [tiktok, youtube, instagram]
+aspect: "9:16"
+duration_s: [8, 15]
+questions:
+  - key: video.textcard.message
+    question_ko: "짧은 텍스트 영상으로 전달할 한 문장은 무엇인가요?"
+    question_en: "What one message should the short text video deliver?"
+  - key: video.textcard.cards
+    question_ko: "화면에 순서대로 뜰 문구를 3~6개 적어주세요."
+    question_en: "List 3 to 6 text cards in order."
+  - key: video.textcard.background
+    question_ko: "배경은 이미지, 영상, 단색, 질감 중 어떤 방향인가요?"
+    question_en: "Should the background be an image, video, solid color, or texture?"
+  - key: video.textcard.motion
+    question_ko: "텍스트 움직임은 어떤 느낌이면 좋을까요?"
+    question_en: "What should the text motion feel like?"
+  - key: video.textcard.sound
+    question_ko: "음악이나 효과음 방향이 있나요?"
+    question_en: "What music or sound direction should it use?"
+  - key: video.textcard.endcard
+    question_ko: "마지막 카드의 CTA는 무엇인가요?"
+    question_en: "What CTA should the final card show?"
+prompt_template: |
+  Generate a vertical text-card video for {{profile_name}}.
+  Message: {{message}}
+  Text cards: {{cards}}
+  Background: {{background}}
+  Motion style: {{motion}}
+  Sound direction: {{sound}}
+  End card: {{endcard}}
+  Use {{aspect}} at {{width_px}}x{{height_px}}.
+  Keep one idea on screen at a time.
+  Make every text card readable on a phone without pausing.
+  Keep text inside the safe zone for TikTok, Shorts, and Reels UI.
+  Use motion to guide reading order, not to decorate.
+  Do not add extra platform UI, watermarks, or claims.
+  Return timing, text layers, background notes, audio notes, and export settings.
+gates: [caption_safe_zone, text_legibility, timing, contrast, export_size]
+limits:
+  width_px: 1080
+  height_px: 1920
+  cards_count: [3, 6]
+  words_per_card_max: 9
+  min_card_hold_s: 1.1
+  platform_max_duration_s: {tiktok: 180, youtube: 180, instagram: 900}
+  platform_recommended_aspect: {tiktok: "9:16", youtube: "9:16", instagram: "9:16"}
+  min_resolution_px: {tiktok: [540, 960], youtube: [1080, 1920], instagram: [1080, 1920]}
+  safe_zone_px: {x_min: 200, x_max: 880, y_min: 290, y_max: 1430}
+credit_cap_per_item: 60

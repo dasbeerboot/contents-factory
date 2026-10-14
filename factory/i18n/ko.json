@@ -48,5 +48,6 @@
   "token.expiry_warning": "{platform} 토큰({profile} 프로필) 만료 {days}일 전. factory token refresh 돌려라.",
   "error.env_missing": "크레덴셜 키 누락: {keys}. credentials.env에 넣어라.",
   "error.profile_missing": "그런 프로필 없다: {name}.",
-  "error.state_handwrite": "런타임 홈 밑 상태파일은 factory CLI로만 바꾼다."
+  "error.state_handwrite": "런타임 홈 밑 상태파일은 factory CLI로만 바꾼다.",
+  "gates.skip": "건너뜀: {reason}"
 }

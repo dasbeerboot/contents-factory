@@ -48,5 +48,6 @@
   "token.expiry_warning": "{platform} token for profile {profile} expires in {days} day(s). Run factory token refresh.",
   "error.env_missing": "Missing credentials keys: {keys}. Add them to credentials.env.",
   "error.profile_missing": "No such profile: {name}.",
-  "error.state_handwrite": "State under the runtime home is only changed through the factory CLI."
+  "error.state_handwrite": "State under the runtime home is only changed through the factory CLI.",
+  "gates.skip": "SKIP: {reason}"
 }

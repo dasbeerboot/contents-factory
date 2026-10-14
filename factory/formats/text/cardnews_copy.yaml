@@ -1,0 +1,46 @@
+name: cardnews_copy
+kind: text
+platforms: [instagram]
+questions:
+  - key: text.cardnews.source
+    question_ko: "카드뉴스로 쪼갤 원문이나 아이디어는 무엇인가요?"
+    question_en: "What source text or idea should be broken into carousel cards?"
+  - key: text.cardnews.slide_count
+    question_ko: "몇 장짜리 카드뉴스로 만들까요?"
+    question_en: "How many carousel slides should this become?"
+  - key: text.cardnews.hook_type
+    question_ko: "1장은 어떤 훅이면 좋을까요? 예: 정체성 호명, 반전, 문제 제기."
+    question_en: "What hook type should slide 1 use: identity callout, reversal, or problem?"
+  - key: text.cardnews.save_object
+    question_ko: "저장 유도용 체크리스트나 요약 카드는 무엇을 담을까요?"
+    question_en: "What should the save-worthy checklist or summary slide contain?"
+  - key: text.cardnews.final_cta
+    question_ko: "마지막 장의 공유 또는 저장 CTA는 무엇인가요?"
+    question_en: "What share or save CTA should appear on the final slide?"
+  - key: text.cardnews.avoid
+    question_ko: "카드 안에 직접 넣으면 안 되는 말이나 링크가 있나요?"
+    question_en: "What words, claims, or links must stay out of the cards?"
+prompt_template: |
+  Turn the source into Instagram carousel copy for {{profile_name}} in {{content_lang}}.
+  Source: {{source}}
+  Slide count: {{slide_count}}
+  Hook type: {{hook_type}}
+  Save object: {{save_object}}
+  Final CTA: {{final_cta}}
+  Avoid: {{avoid}}
+  Slide 1 must create a stop-scroll reason in 8 to 12 words.
+  Slides 2 and 3 must give value before the reader is asked to trust the concept.
+  Put the main reveal by slides 5 to 7.
+  Keep each slide to 1 or 2 sentences.
+  End each middle slide at a tension point when possible.
+  Do not put site or purchase language in the body slides.
+  Return slide_number, headline, body, visual_note, and caption_seed.
+gates: [limits, forbidden_words, slide_density, duplicate_copy, cta_single]
+limits:
+  slides_target: [6, 10]
+  slides_max: 20
+  slide_words_target: [10, 30]
+  slide_headline_words_max: 12
+  body_cta_allowed: false
+  final_cta_max: 1
+  caption_seed_chars_max: 280

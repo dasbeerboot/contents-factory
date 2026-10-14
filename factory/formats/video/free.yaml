@@ -1,0 +1,19 @@
+questions:
+  - key: video.free.goal
+    question_ko: "무엇을 보여주고 싶은 영상인가요?"
+    question_en: "What should the video show?"
+  - key: video.free.platforms
+    question_ko: "어느 플랫폼에 올릴 영상인가요?"
+    question_en: "Which platforms will this video be posted to?"
+  - key: video.free.duration
+    question_ko: "원하는 길이는 몇 초인가요?"
+    question_en: "How many seconds should it be?"
+  - key: video.free.references
+    question_ko: "참조 영상, 이미지, 대본이 있나요?"
+    question_en: "Are there reference videos, images, or scripts?"
+  - key: video.free.tone
+    question_ko: "원하는 톤과 리듬은 무엇인가요?"
+    question_en: "What tone and rhythm should it have?"
+  - key: video.free.avoid
+    question_ko: "절대 나오면 안 되는 요소는 무엇인가요?"
+    question_en: "What must not appear?"

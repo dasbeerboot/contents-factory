@@ -1,0 +1,56 @@
+name: talking_head
+kind: video
+platforms: [tiktok, youtube, instagram]
+aspect: "9:16"
+duration_s: [23, 28]
+questions:
+  - key: video.th.location
+    question_ko: "진행자가 어디에서 말하는 장면인가요?"
+    question_en: "Where is the host speaking?"
+  - key: video.th.outfit
+    question_ko: "의상과 고정 룩은 무엇인가요?"
+    question_en: "What outfit and locked visual look should the host keep?"
+  - key: video.th.identity
+    question_ko: "진행자의 정체성과 청중과의 관계를 어떻게 설명할까요?"
+    question_en: "How should the host identity and relationship to the audience be described?"
+  - key: video.th.hook_line
+    question_ko: "첫 3초 안에 말할 훅 문장은 무엇인가요?"
+    question_en: "What hook line should be spoken in the first 3 seconds?"
+  - key: video.th.body_lines
+    question_ko: "중간에 말할 핵심 문장 2~4개를 적어주세요."
+    question_en: "List 2 to 4 core spoken lines for the middle."
+  - key: video.th.endcard
+    question_ko: "마지막 엔드카드 문구는 무엇인가요?"
+    question_en: "What should the final end card say?"
+prompt_template: |
+  The START IMAGE is the exact first frame and face reference for {{host_identity}}.
+  Keep the face, outfit, opening composition, camera height, subject placement, background, and lighting from the start image.
+  [Generation Goal] Generate a {{duration_s}}-second vertical video, one continuous take, no cuts.
+  [Camera] One camera move only: handheld front-camera tracking shot.
+  The phone travels forward with the host at walking pace through {{location}} for the entire take.
+  The host talks warmly to the front camera as if speaking to a close friend.
+  Natural gaze: roughly two thirds on the lens and one third away, never a fixed stare.
+  Never show the phone, filming arm, camera operator, or a second person.
+  Framing: chest-up to head framing at arm's length, face filling roughly 35 to 40 percent of frame height, slightly off-center.
+  Visual identity: {{identity}}
+  Outfit: {{outfit}}
+  [Audio] Dialogue language: {{content_lang}}, normal volume, brisk and warm, about {{wpm}} words per minute. Only the host voice and {{ambience}}. No music.
+  [Stage 1 | 0-0.3s] Opening. The host is already walking and begins talking almost immediately.
+  [Stage 2 | 0.3-3s] The host says: {{hook_line}}
+  [Stage 3 | 3-{{midpoint_s}}s] Continue with the body lines: {{body_lines}}
+  [Stage 4 | {{midpoint_s}}-{{end_s}}s] Land the final spoken point and close the mouth after the last word.
+  [Stage 5 | {{end_s}}-{{duration_s}}s] End card only: {{endcard}}
+  [Maintain Consistency] One host, one face, same outfit, same selfie framing, same real background, walking forward the whole time.
+  Negative: smaller eyes, altered face, face drift, phone in frame, visible filming arm, third hand, duplicate limbs, looking down, fixed stare, subtitles, on-screen text before the end card, readable background text, music, cuts, beauty filter, frozen background, background morphing, object warping.
+gates: [caption_safe_zone, limb_motion, bg_motion, stt_wpm, identity, readable_text, start_freeze]
+limits:
+  width_px: 1080
+  height_px: 1920
+  wpm: [150, 185]
+  first3s_events_min: 3
+  platform_max_duration_s: {tiktok: 180, youtube: 180, instagram: 900}
+  platform_recommended_aspect: {tiktok: "9:16", youtube: "9:16", instagram: "9:16"}
+  min_resolution_px: {tiktok: [540, 960], youtube: [1080, 1920], instagram: [1080, 1920]}
+  safe_zone_px: {x_min: 200, x_max: 880, y_min: 290, y_max: 1430}
+  endcard_min_s: 2.5
+credit_cap_per_item: 150

@@ -1,0 +1,42 @@
+name: ig_caption
+kind: text
+platforms: [instagram]
+questions:
+  - key: text.ig.post_context
+    question_ko: "어떤 이미지, 릴스, 캐러셀에 붙일 캡션인가요?"
+    question_en: "What image, Reel, or carousel will this caption accompany?"
+  - key: text.ig.lead
+    question_ko: "첫 줄에서 잡아야 할 감정이나 장면은 무엇인가요?"
+    question_en: "What feeling or scene should the first line catch?"
+  - key: text.ig.caption_role
+    question_ko: "캡션의 역할은 무엇인가요? 예: 질문 유도, 요약, 보충 설명, 저장 유도."
+    question_en: "What job should the caption do, such as invite replies, summarize, add context, or drive saves?"
+  - key: text.ig.hashtag_set
+    question_ko: "반드시 포함할 해시태그 묶음이 있나요?"
+    question_en: "Are there required hashtags to include?"
+  - key: text.ig.bio_line
+    question_ko: "프로필 링크나 bio 유도 문구는 어떻게 말할까요?"
+    question_en: "How should the profile-link or bio CTA be phrased?"
+  - key: text.ig.avoid
+    question_ko: "카드나 영상 문구와 중복되면 안 되는 내용이 있나요?"
+    question_en: "What should not duplicate the card or video copy?"
+prompt_template: |
+  Write {{count}} Instagram captions for {{profile_name}} in {{content_lang}}.
+  Post context: {{post_context}}
+  First-line lead: {{lead}}
+  Caption role: {{caption_role}}
+  Required hashtags: {{hashtag_set}}
+  Bio line: {{bio_line}}
+  Avoid duplicating: {{avoid}}
+  Use a hook line, a short body only if needed, one low-friction question, the bio line, and hashtags.
+  Do not paste the full card or video script into the caption.
+  Keep the caption under {{max_chars}} characters.
+gates: [limits, forbidden_words, duplicate_copy, hashtag_count, cta_single]
+limits:
+  max_chars: 2200
+  target_chars: [120, 900]
+  hashtags_max: 30
+  mentions_max: 20
+  emoji_max: 3
+  external_links: false
+  cta_max: 1

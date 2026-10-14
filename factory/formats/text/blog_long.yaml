@@ -1,0 +1,45 @@
+name: blog_long
+kind: text
+platforms: [naver_blog]
+questions:
+  - key: text.blog.keyword
+    question_ko: "검색에서 잡고 싶은 핵심 키워드는 무엇인가요?"
+    question_en: "What primary search keyword should this post target?"
+  - key: text.blog.reader_problem
+    question_ko: "독자가 해결하려는 문제나 궁금증은 무엇인가요?"
+    question_en: "What problem or question is the reader trying to solve?"
+  - key: text.blog.proof
+    question_ko: "반드시 넣어야 할 근거, 경험, 수치, 사례가 있나요?"
+    question_en: "What evidence, experience, data, or examples must be included?"
+  - key: text.blog.offer
+    question_ko: "마지막에 자연스럽게 연결할 제안이나 다음 행동은 무엇인가요?"
+    question_en: "What offer or next action should the ending lead to naturally?"
+  - key: text.blog.sections
+    question_ko: "꼭 포함할 소제목이나 섹션이 있나요?"
+    question_en: "Are there required sections or subheadings?"
+  - key: text.blog.avoid
+    question_ko: "검색 노출이나 신뢰를 해칠 수 있어 피해야 할 표현은 무엇인가요?"
+    question_en: "What should be avoided because it may hurt search visibility or trust?"
+prompt_template: |
+  Write a long-form blog post for {{profile_name}} in {{content_lang}}.
+  Primary keyword: {{keyword}}
+  Reader problem: {{reader_problem}}
+  Required proof: {{proof}}
+  Required sections: {{sections}}
+  Offer or next action: {{offer}}
+  Avoid: {{avoid}}
+  Use a clear title, short mobile-friendly paragraphs, descriptive subheadings, and a practical conclusion.
+  Put the reader problem before any domain explanation.
+  Use the primary keyword naturally in the title, introduction, one subheading, and conclusion.
+  Do not make unsupported claims.
+  Return title, meta_description, body_markdown, and tags.
+gates: [limits, forbidden_words, claim_check, keyword_stuffing, duplicate_copy]
+limits:
+  title_chars_target: [28, 58]
+  meta_description_chars_max: 160
+  body_chars_target: [2500, 8000]
+  paragraph_chars_max: 420
+  h2_count_min: 3
+  external_links_max: 3
+  images_recommended_min: 3
+  keyword_density_max_pct: 2.5

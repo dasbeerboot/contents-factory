@@ -1,0 +1,59 @@
+name: pov
+kind: video
+platforms: [tiktok, youtube, instagram]
+aspect: "9:16"
+duration_s: [20, 24]
+questions:
+  - key: video.pov.location
+    question_ko: "카메라가 앞에서 뒤로 물러나며 찍는 장소는 어디인가요?"
+    question_en: "Where is the rear-camera walking scene filmed?"
+  - key: video.pov.viewer_line_1
+    question_ko: "시청자가 처음 말하는 짧은 대사는 무엇인가요?"
+    question_en: "What is the viewer's first short line?"
+  - key: video.pov.viewer_line_2
+    question_ko: "시청자가 두 번째로 말하는 짧은 대사는 무엇인가요?"
+    question_en: "What is the viewer's second short line?"
+  - key: video.pov.host_lines
+    question_ko: "진행자가 답할 핵심 대사 3개를 적어주세요."
+    question_en: "List the host's three core response lines."
+  - key: video.pov.outfit
+    question_ko: "의상과 고정 룩은 무엇인가요?"
+    question_en: "What outfit and locked visual look should the host keep?"
+  - key: video.pov.endcard
+    question_ko: "마지막 엔드카드 문구는 무엇인가요?"
+    question_en: "What should the final end card say?"
+prompt_template: |
+  The START IMAGE is the exact first frame and face reference for {{host_identity}}.
+  Keep the face, outfit, opening composition, camera distance, background, and lighting from the start image.
+  [Generation Goal] Generate a {{duration_s}}-second vertical video, one continuous take, no cuts.
+  The camera is a rear camera held at chest height a step or two in front of the host, moving backward at the host's walking pace.
+  This is not a selfie. No phone, palm, selfie arm, camera operator, or second person appears.
+  The host walks toward the camera and talks to the lens like a friend walking in front of them.
+  Location: {{location}}
+  Outfit: {{outfit}}
+  Visual identity: {{identity}}
+  Natural gaze: the host looks at the lens while making a point, then looks ahead or aside for a beat, then back.
+  Framing: medium friend-distance framing, body visible from about the waist up, face about one quarter to one third of frame height.
+  Arms swing naturally with every step and never lock in one position.
+  [Audio] Dialogue language: {{content_lang}}, about {{wpm}} words per minute. Viewer voice uses {{viewer_voice}}. No music.
+  [Stage 1 | 0-{{viewer_1_end_s}}s] Viewer says: {{viewer_line_1}}. The host listens silently while walking.
+  [Stage 2 | {{viewer_1_end_s}}-{{host_1_end_s}}s] Host answers: {{host_line_1}}
+  [Stage 3 | {{host_1_end_s}}-{{viewer_2_end_s}}s] Viewer says: {{viewer_line_2}}. The host listens silently while walking.
+  [Stage 4 | {{viewer_2_end_s}}-{{host_2_end_s}}s] Host answers: {{host_line_2}}
+  [Stage 5 | {{host_2_end_s}}-{{host_3_end_s}}s] Host lands the final point: {{host_line_3}}
+  [Stage 6 | {{host_3_end_s}}-{{duration_s}}s] End card only: {{endcard}}
+  [Maintain Consistency] One host, one face, same outfit, same friend-distance framing from the front, same background, always walking toward the camera.
+  Negative: altered face, close-up, profile, side view, filmed from behind, back of head, walking away, phone in frame, selfie arm, third hand, duplicate limbs, locked elbow, fixed stare, looking down, subtitles before the end card, readable background text, music, cuts, beauty filter, frozen background, unnatural backward pedestrians.
+gates: [caption_safe_zone, limb_motion, bg_motion, stt_wpm, identity, viewer_voice_sync, start_freeze]
+limits:
+  width_px: 1080
+  height_px: 1920
+  wpm: [150, 185]
+  viewer_line_s_min: 2.2
+  host_lines_count: 3
+  platform_max_duration_s: {tiktok: 180, youtube: 180, instagram: 900}
+  platform_recommended_aspect: {tiktok: "9:16", youtube: "9:16", instagram: "9:16"}
+  min_resolution_px: {tiktok: [540, 960], youtube: [1080, 1920], instagram: [1080, 1920]}
+  safe_zone_px: {x_min: 200, x_max: 880, y_min: 290, y_max: 1430}
+  endcard_min_s: 2.5
+credit_cap_per_item: 150

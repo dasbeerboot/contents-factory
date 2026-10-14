@@ -1,0 +1,52 @@
+name: explainer
+kind: video
+platforms: [tiktok, youtube, instagram]
+aspect: "9:16"
+duration_s: [30, 60]
+questions:
+  - key: video.explainer.topic
+    question_ko: "무엇을 설명하는 영상인가요?"
+    question_en: "What should the video explain?"
+  - key: video.explainer.promise
+    question_ko: "끝까지 보면 무엇을 이해하거나 할 수 있어야 하나요?"
+    question_en: "What should viewers understand or be able to do by the end?"
+  - key: video.explainer.steps
+    question_ko: "핵심 단계나 포인트를 3~5개 적어주세요."
+    question_en: "List 3 to 5 core steps or points."
+  - key: video.explainer.visuals
+    question_ko: "각 단계에 어울리는 화면 자료나 예시는 무엇인가요?"
+    question_en: "What visuals or examples fit each step?"
+  - key: video.explainer.voice
+    question_ko: "내레이션 톤은 어떠해야 하나요?"
+    question_en: "What narration tone should it use?"
+  - key: video.explainer.cta
+    question_ko: "마지막에 어떤 행동 하나를 유도할까요?"
+    question_en: "What single action should the ending invite?"
+prompt_template: |
+  Generate a vertical short-form explainer video for {{profile_name}} in {{content_lang}}.
+  Topic: {{topic}}
+  Viewer promise: {{promise}}
+  Steps: {{steps}}
+  Visuals: {{visuals}}
+  Voice: {{voice}}
+  CTA: {{cta}}
+  Use {{aspect}} at {{width_px}}x{{height_px}}.
+  Open with the viewer problem before the mechanism.
+  Use 3 to 5 clearly labeled beats.
+  Pair every beat with a concrete visual.
+  Keep narration spoken, direct, and non-fatalistic.
+  Keep on-screen text short and inside the safe zone.
+  End with exactly one CTA.
+  Return beat_timing, narration, on_screen_text, visual_prompt, and export settings.
+gates: [caption_safe_zone, stt_wpm, claim_check, text_legibility, cta_single, export_size]
+limits:
+  width_px: 1080
+  height_px: 1920
+  beats_count: [3, 5]
+  wpm: [135, 170]
+  on_screen_text_words_max: 10
+  platform_max_duration_s: {tiktok: 180, youtube: 180, instagram: 900}
+  platform_recommended_aspect: {tiktok: "9:16", youtube: "9:16", instagram: "9:16"}
+  min_resolution_px: {tiktok: [540, 960], youtube: [1080, 1920], instagram: [1080, 1920]}
+  safe_zone_px: {x_min: 200, x_max: 880, y_min: 290, y_max: 1430}
+credit_cap_per_item: 120

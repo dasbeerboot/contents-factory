@@ -1,0 +1,16 @@
+questions:
+  - key: text.free.goal
+    question_ko: "무엇을 쓰고 싶은지 한 문장으로 말해주세요."
+    question_en: "Describe what you want to write in one sentence."
+  - key: text.free.platform
+    question_ko: "어디에 쓸 글인가요?"
+    question_en: "Where will this text be used?"
+  - key: text.free.tone
+    question_ko: "원하는 톤은 무엇인가요?"
+    question_en: "What tone should it have?"
+  - key: text.free.must_include
+    question_ko: "반드시 포함할 내용은 무엇인가요?"
+    question_en: "What must be included?"
+  - key: text.free.avoid
+    question_ko: "절대 피해야 할 내용은 무엇인가요?"
+    question_en: "What must be avoided?"

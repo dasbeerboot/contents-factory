@@ -1,0 +1,49 @@
+name: cardnews
+kind: image
+platforms: [instagram]
+aspect: "4:5"
+questions:
+  - key: image.cardnews.copy_source
+    question_ko: "렌더링할 카드 문안 또는 슬라이드 JSON은 어디에 있나요?"
+    question_en: "Where is the card copy or slide JSON to render?"
+  - key: image.cardnews.style
+    question_ko: "카드의 시각 스타일은 무엇인가요?"
+    question_en: "What visual style should the cards use?"
+  - key: image.cardnews.palette
+    question_ko: "사용할 색상, 폰트, 브랜드 톤은 무엇인가요?"
+    question_en: "What colors, fonts, and brand tone should be used?"
+  - key: image.cardnews.visual_motif
+    question_ko: "장 넘김을 이어줄 반복 시각 요소는 무엇인가요?"
+    question_en: "What repeated visual motif should connect the slides?"
+  - key: image.cardnews.slide_count
+    question_ko: "총 몇 장을 만들까요?"
+    question_en: "How many slides should be produced?"
+  - key: image.cardnews.avoid
+    question_ko: "카드에 나오면 안 되는 이미지, 아이콘, 문구는 무엇인가요?"
+    question_en: "What images, icons, or words must not appear on the cards?"
+prompt_template: |
+  Create an Instagram carousel card set for {{profile_name}}.
+  Copy source: {{copy_source}}
+  Slide count: {{slide_count}}
+  Visual style: {{style}}
+  Palette and type: {{palette}}
+  Connecting motif: {{visual_motif}}
+  Avoid: {{avoid}}
+  Render every slide in {{aspect}} at {{width_px}}x{{height_px}}.
+  Use one clear idea per slide.
+  Keep all text inside the safe area.
+  Make slide 1 readable at feed size.
+  Make the save-object slide visually scannable.
+  Keep the final CTA distinct from the body slides.
+  Return ordered slide image specs and export names.
+gates: [caption_safe_zone, text_legibility, slide_order, contrast, export_size]
+limits:
+  width_px: 1080
+  height_px: 1350
+  slides_target: [6, 10]
+  slides_max: 20
+  safe_margin_px: 96
+  text_coverage_max_pct: 28
+  instagram_file_mb_max_each: 8
+  format: jpeg
+credit_cap_per_item: 30

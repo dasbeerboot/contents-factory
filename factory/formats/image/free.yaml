@@ -1,0 +1,16 @@
+questions:
+  - key: image.free.goal
+    question_ko: "무엇을 보여주고 싶은 이미지인가요?"
+    question_en: "What should the image show?"
+  - key: image.free.use
+    question_ko: "어디에 사용할 이미지인가요?"
+    question_en: "Where will the image be used?"
+  - key: image.free.references
+    question_ko: "참조 이미지나 고정해야 할 요소가 있나요?"
+    question_en: "Are there reference images or fixed elements?"
+  - key: image.free.tone
+    question_ko: "원하는 분위기와 스타일은 무엇인가요?"
+    question_en: "What mood and style should it have?"
+  - key: image.free.avoid
+    question_ko: "절대 나오면 안 되는 요소는 무엇인가요?"
+    question_en: "What must not appear?"

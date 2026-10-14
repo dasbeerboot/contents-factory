@@ -1,0 +1,45 @@
+name: thumbnail
+kind: image
+platforms: [youtube, tiktok, instagram]
+aspect: "9:16"
+questions:
+  - key: image.thumbnail.video_topic
+    question_ko: "어떤 영상의 커버 이미지인가요?"
+    question_en: "What video is this cover image for?"
+  - key: image.thumbnail.frame_source
+    question_ko: "대표 프레임, 인물, 제품, 배경 중 무엇을 기준으로 삼을까요?"
+    question_en: "Should the cover be based on a frame, person, product, or background?"
+  - key: image.thumbnail.hook_text
+    question_ko: "커버에 넣을 짧은 훅 문구는 무엇인가요?"
+    question_en: "What short hook text should appear on the cover?"
+  - key: image.thumbnail.emotion
+    question_ko: "클릭 전에 느껴야 할 감정은 무엇인가요?"
+    question_en: "What emotion should the viewer feel before tapping?"
+  - key: image.thumbnail.brand_signal
+    question_ko: "반복되는 브랜드 신호는 무엇으로 넣을까요?"
+    question_en: "What recurring brand signal should be included?"
+  - key: image.thumbnail.avoid
+    question_ko: "플랫폼 UI에 가리거나 과장되어 보이면 안 되는 요소는 무엇인가요?"
+    question_en: "What must not be hidden by platform UI or look exaggerated?"
+prompt_template: |
+  Create a vertical short-form video cover image for {{profile_name}}.
+  Video topic: {{video_topic}}
+  Frame source: {{frame_source}}
+  Hook text: {{hook_text}}
+  Emotion: {{emotion}}
+  Brand signal: {{brand_signal}}
+  Avoid: {{avoid}}
+  Use {{aspect}} at {{width_px}}x{{height_px}}.
+  The cover must still read when cropped in a grid.
+  Keep the hook text short and inside the center safe zone.
+  Do not add extra claims, stickers, platform UI, or watermarks.
+  Return one image prompt and export metadata.
+gates: [safe_zone, text_legibility, face_or_product_focus, crop_grid_preview, contrast]
+limits:
+  width_px: 1080
+  height_px: 1920
+  hook_text_chars_max: 42
+  center_safe_zone_px: {x_min: 180, x_max: 900, y_min: 300, y_max: 1500}
+  platform_ui_clearance_pct: {top: 14, bottom: 30, sides: 6}
+  format: jpeg
+credit_cap_per_item: 8
