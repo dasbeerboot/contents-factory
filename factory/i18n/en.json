@@ -55,5 +55,12 @@
   "delivery.resume": "{item_id} already has a container, so the next tick only finishes the publish step. Nothing is created twice.",
   "queue.reopened": "{item_id} is back to ready. Reason on record: {reason}",
   "media.public_url_required": "{platform} fetches media from a URL, so a local path cannot be posted. Fill media public_url first.",
-  "queue.rescheduled": "{item_id} moved to {scheduled_at}."
+  "queue.rescheduled": "{item_id} moved to {scheduled_at}.",
+  "auth.consent.header": "Open this URL in a browser and allow everything. You must be signed in as the account you are connecting; another session hands you that account's token instead.",
+  "auth.redirect.note": "The redirect URL must match the registered one character for character: {redirect}",
+  "auth.paste.warning": "After allowing, paste the whole address bar. Input stays hidden. The code is a single use secret, so never paste it into chat, a commit or a log.",
+  "auth.paste.prompt": "Paste the full redirected URL (hidden): ",
+  "auth.warning": "warning: {detail}",
+  "auth.saved": "{platform} connected: @{username} (profile {profile}, exchange route {route}). Keys written: {keys}. No value is ever printed.",
+  "auth.instagram.manual": "The instagram exchange is not automated yet. These steps are still manual:"
 }

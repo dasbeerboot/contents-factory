@@ -54,6 +54,9 @@ are not runtime state); everything under `queue/`, `briefs/` and `state/` is CLI
 Keys go in `~/.contents-factory/profiles/<name>/credentials.env`, one `KEY=value` per line,
 `chmod 600`. The README table is canonical; this is the same list with the setup path.
 
+Threads is the one platform that writes its own keys: `factory auth threads` runs the
+OAuth flow and records the token for you (step 4). Everything else is hand entered.
+
 | Platform | credentials.env | platforms.json |
 |---|---|---|
 | Threads | `THREADS_ACCESS_TOKEN`, `THREADS_USER_ID` | `slots`, `daily_cap`, `late_policy` |
@@ -81,12 +84,47 @@ new account connected, in order, and every step is required:
    account → Threads app → **Settings → Website permissions → Invites** (IG: Settings →
    Apps and websites → Tester invites) → accept. An unaccepted invite looks identical to no
    invite at all: OAuth fails with a generic error.
-3. **OAuth**: run the authorization URL for the app and sign in as that account. The
-   **redirect URL must match the registered one character for character** — trailing slash,
-   http vs https, port, everything. A mismatch is the single most common failure.
-4. Exchange the code for a long-lived token, put it in `credentials.env` as
-   `THREADS_ACCESS_TOKEN`, and record `THREADS_TOKEN_ISSUED_AT=YYYY-MM-DD`.
-5. Confirm with a dry run, then one real post from a test account.
+3. **OAuth** — this is the command, not a manual curl:
+
+   ```
+   factory auth threads --profile <name> --app-id <APP_ID> --redirect <REDIRECT_URI>
+   factory auth threads --profile <name> --url-only        # print the URL, exchange later
+   ```
+
+   It prints the consent URL, opens a browser, and waits for you to paste the **whole
+   redirected address** back in. The paste is hidden; the code never appears on screen.
+   Then it exchanges the code, calls `/me`, and writes `THREADS_ACCESS_TOKEN`,
+   `THREADS_USER_ID` and `THREADS_TOKEN_ISSUED_AT` into the profile's `credentials.env`
+   at mode 600. It prints the connected handle and nothing else.
+
+   Two things decide whether this works:
+   - the **redirect URL must match the registered one character for character** —
+     trailing slash, http vs https, port, everything. A mismatch is the single most
+     common failure, and the command echoes the URI it used so you can compare.
+   - the browser must be signed in as the **target** account. Another session hands you
+     that other account's token, which is the worst outcome in the whole setup: the
+     factory will publish to the wrong account and nothing will look broken.
+4. Where the app secret lives decides the exchange route, and the command picks on its
+   own:
+   - `THREADS_APP_SECRET` present in `credentials.env` or the environment → the exchange
+     runs locally, nothing leaves the machine except the Meta calls.
+   - no local secret → the code goes to `--exchange-url` (a small endpoint that holds the
+     secret, e.g. `https://<your-domain>/api/threads/exchange`) which returns the
+     long-lived token. The request body is only `{code, redirect_uri, app_id}`.
+
+   Tell the user which route ran; the command prints it. If you want the local route, the
+   secret goes in `credentials.env` as `THREADS_APP_SECRET`, never in chat.
+5. The command refuses to save a token whose grant is missing `threads_basic` or
+   `threads_content_publish` (`SCOPE_MISSING`). `debug_token` is the only reliable scope
+   check: the dashboard token generator reissues inside the account's **old** grant, so a
+   newly added permission can be "ready" in the dashboard and still absent from the token.
+6. Confirm with a dry run, then one real post from a test account.
+
+Instagram has the same shape but the exchange is not automated yet:
+`factory auth instagram --profile <name> --app-id <APP_ID>` prints the consent URL plus
+the steps that are still manual, and `connect()` raises `AUTH_NOT_IMPLEMENTED`. The
+account must be a professional (business or creator) account, and `IG_USER_ID` is the
+content publishing node id, not the handle and not the Threads user id.
 
 Tokens live 60 days. `factory token refresh --platform threads --profile <name>` renews
 them; the tick warns from 7 days out. Refreshing is the single most common outage point in

@@ -44,6 +44,9 @@ factory queue reschedule q_... --slot next|<ISO>   # 슬롯 이동 (발행본·�
 factory queue reopen --item q_... --reason "..."   # unknown phase 해제 (사람 확인 후)
 factory publish <platform> --item q_... [--dry-run]
 factory schedule install|remove|status [--runner launchd|cron] | tick [--dry-run]
+factory auth threads   --profile X [--app-id ID] [--redirect URI] [--exchange-url URL]
+                       [--url-only] [--no-open]     # OAuth, writes THREADS_* keys
+factory auth instagram --profile X [--app-id ID] [--redirect URI]  # consent URL only (P1)
 factory token refresh [--profile X] [--platform threads|instagram] [--dry-run]
 factory ledger summary [--days 30]
 factory i18n get <key> [--lang ko|en] | keys | missing --lang ko
@@ -115,13 +118,21 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
 
 | 용도 | 필수 키 | 선택 키 |
 |---|---|---|
-| Threads | `THREADS_ACCESS_TOKEN`, `THREADS_USER_ID` | `THREADS_TOKEN_ISSUED_AT`(refresh가 기록) |
+| Threads | `THREADS_ACCESS_TOKEN`, `THREADS_USER_ID` | `THREADS_TOKEN_ISSUED_AT`(auth·refresh가 기록), `THREADS_APP_ID`, `THREADS_APP_SECRET`(있으면 로컬 교환), `THREADS_REDIRECT_URI` |
 | Instagram | `IG_ACCESS_TOKEN`, `IG_USER_ID` | `IG_TOKEN_ISSUED_AT`, `IG_APP_ID`, `IG_APP_SECRET` |
 | TikTok (Higgsfield MCP) | `HIGGSFIELD_MCP_TOKEN` | - |
 | YouTube | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` | `YOUTUBE_ACCESS_TOKEN`(단기 폴백) |
 | 네이버 블로그 | (토큰 없음) | `FACTORY_ASIDE_BIN`(기본 `aside`) |
 | 미디어 호스팅 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | `SUPABASE_BUCKET`(기본 `contents-factory`) |
 | 텍스트 생성 | `ANTHROPIC_API_KEY` | - |
+
+Threads 토큰은 `factory auth threads --profile X`가 직접 넣는다 — 동의 URL 출력 → 리다이렉트된
+전체 URL을 숨긴 프롬프트에 붙여넣기 → code 교환 → `/me` → `credentials.env`(chmod 600) 기록.
+값은 어디에도 안 찍히고 핸들만 출력한다. `THREADS_APP_SECRET`이 로컬에 있으면 직접 교환하고,
+없으면 `--exchange-url`(기본 `https://koreansaju.xyz/api/threads/exchange`)에
+`{code, redirect_uri, app_id}`만 보내 long-lived를 받아온다. 토큰 grant에
+`threads_content_publish`가 없으면 저장을 거부한다(`SCOPE_MISSING`). Instagram은 같은 구조의
+스텁이라 동의 URL만 출력한다.
 
 플랫폼 제약 (사실, 2026-10 기준):
 
@@ -189,6 +200,7 @@ WARN을 남긴다.
 factory/
   cli.py __main__.py config.py credentials.py errors.py ledger.py
   i18n/{ko,en}.json           인터뷰·리포트 문구 (영문 점표기 키)
+  auth/{base,threads,instagram}.py   OAuth 동의 URL·code 교환·credentials 기록
   spec/{brief,profile,queue,format}.py
   formats/{text,image,video}/*.yaml
   generators/text.py          Anthropic claude-sonnet-5 + 캐싱
@@ -215,6 +227,7 @@ tests/
 | `publishers/tiktok.py` | `tiktok_publish.py` |
 | `publishers/youtube.py` | `yt_upload.py`, `yt_oauth.py`, `platform_cta.py` |
 | `publishers/naver/*` | `pilot/scripts/naver/{publish,md_to_document}.mjs`, `lib/{aside,document}.mjs` |
+| `auth/threads.py` | `oauth_exchange.sh`, `profile_add.sh --exchange` |
 | `scheduler/token_refresh.py` | `token_refresh.sh` |
 | `queue/`, `scheduler/tick.py` | `queue_autopub.py`, `com.saju.publish.plist` |
 | `generators/text.py` | `persona_writer.py` |

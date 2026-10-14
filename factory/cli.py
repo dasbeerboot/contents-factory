@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import sys
+import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
 
 from . import i18n, ledger, rules
+from .auth import instagram as instagram_auth
+from .auth import threads as threads_auth
 from .config import Config, init_home, load_config, repo_root
 from .credentials import load_profile_env
 from .errors import FactoryError
@@ -102,6 +106,25 @@ def build_parser() -> argparse.ArgumentParser:
     schedule_tick = schedule_actions.add_parser("tick")
     schedule_tick.add_argument("--dry-run", action="store_true")
 
+    auth = commands.add_parser("auth", help="connect a platform account by OAuth")
+    auth_actions = auth.add_subparsers(dest="auth_command", required=True)
+    for platform in ("threads", "instagram"):
+        single = auth_actions.add_parser(platform)
+        single.add_argument("--profile")
+        single.add_argument("--app-id", dest="app_id",
+                            help="Meta app id; defaults to THREADS_APP_ID / IG_APP_ID")
+        single.add_argument("--redirect",
+                            help="must match the registered redirect URL exactly")
+        single.add_argument("--url-only", action="store_true",
+                            help="print the consent URL and stop")
+        single.add_argument("--no-open", action="store_true",
+                            help="do not open a browser")
+        if platform == "threads":
+            single.add_argument("--exchange-url",
+                                default=threads_auth.DEFAULT_EXCHANGE_URL,
+                                help="endpoint holding the app secret, used when "
+                                     "THREADS_APP_SECRET is not on this machine")
+
     token = commands.add_parser("token", help="token refresh")
     token_actions = token.add_subparsers(dest="token_command", required=True)
     token_refresh_parser = token_actions.add_parser("refresh")
@@ -158,6 +181,7 @@ def dispatch(config: Config, args: argparse.Namespace) -> int:
         "gate": _gate,
         "queue": queue_cli.run,
         "publish": _publish,
+        "auth": _auth,
         "schedule": _schedule,
         "token": _token,
         "ledger": _ledger,
@@ -521,6 +545,62 @@ def _publish(config: Config, args: argparse.Namespace) -> int:
                   profile=item.profile, ref=item.id,
                   result="ok" if result.ok else result.code)
     return EXIT_OK if result.ok else EXIT_ERROR
+
+
+def _announce_consent(url: str, *, translate: i18n.Translator, open_browser: bool) -> None:
+    print(translate("auth.consent.header"))
+    print()
+    print(url)
+    print()
+    if open_browser:
+        try:
+            webbrowser.open(url)
+        except Exception:  # noqa: BLE001 - a headless box still gets the printed URL
+            pass
+
+
+def _auth(config: Config, args: argparse.Namespace) -> int:
+    """OAuth for one profile. The pasted code and the token stay off every output."""
+    home = config.home_path
+    translate = i18n.Translator(config.ui_lang)
+    profile = args.profile or config.default_profile
+
+    if args.auth_command == "instagram":
+        url, steps = instagram_auth.plan(home, profile, app_id=args.app_id,
+                                         redirect_uri=args.redirect)
+        _announce_consent(url, translate=translate,
+                          open_browser=not args.no_open and not args.url_only)
+        print(translate("auth.instagram.manual"))
+        for step in steps:
+            print(f"  {step}")
+        return EXIT_OK
+
+    if args.auth_command != "threads":
+        raise FactoryError("AUTH_COMMAND_UNKNOWN", str(args.auth_command)[:32])
+
+    env = load_profile_env(home, profile)
+    app_id = threads_auth.resolve_app_id(env, args.app_id)
+    redirect_uri = threads_auth.resolve_redirect(env, args.redirect)
+    url = threads_auth.authorize_url(app_id=app_id, redirect_uri=redirect_uri)
+    _announce_consent(url, translate=translate,
+                      open_browser=not args.no_open and not args.url_only)
+    print(translate("auth.redirect.note", redirect=redirect_uri))
+    if args.url_only:
+        return EXIT_OK
+    print(translate("auth.paste.warning"))
+    try:
+        pasted = getpass.getpass(translate("auth.paste.prompt"))
+    except EOFError:
+        raise FactoryError("CODE_MISSING") from None
+    result = threads_auth.connect(home, profile, pasted=pasted, app_id=app_id,
+                                  redirect_uri=redirect_uri,
+                                  exchange_url=args.exchange_url)
+    for warning in result.warnings:
+        print(translate("auth.warning", detail=warning))
+    print(translate("auth.saved", platform=result.platform, profile=result.profile,
+                    username=result.username or "?", route=result.route,
+                    keys=",".join(result.written_keys)))
+    return EXIT_OK
 
 
 def _schedule(config: Config, args: argparse.Namespace) -> int:

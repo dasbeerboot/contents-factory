@@ -55,5 +55,12 @@
   "delivery.resume": "{item_id}는 컨테이너가 이미 있어서 다음 tick이 publish 단계만 마무리한다. 두 번 만들지 않는다.",
   "queue.reopened": "{item_id} ready로 복귀. 기록된 근거: {reason}",
   "media.public_url_required": "{platform}은 URL에서 미디어를 가져가므로 로컬 경로로는 발행이 안 된다. media public_url을 먼저 채워라.",
-  "queue.rescheduled": "{item_id} 슬롯 이동: {scheduled_at}."
+  "queue.rescheduled": "{item_id} 슬롯 이동: {scheduled_at}.",
+  "auth.consent.header": "아래 URL을 브라우저에서 열고 전부 허용한다. 연결할 계정으로 로그인된 상태여야 한다. 다른 계정 세션이면 그 계정 토큰이 나온다.",
+  "auth.redirect.note": "리다이렉트 URL은 등록값과 글자 그대로 같아야 한다: {redirect}",
+  "auth.paste.warning": "허용 뒤 주소창의 전체 URL을 붙여넣는다. 입력은 화면에 안 보인다. code 는 1회용 비밀값이라 채팅·커밋·로그에 붙여넣지 않는다.",
+  "auth.paste.prompt": "리다이렉트된 전체 URL 붙여넣기 (화면에 안 보임): ",
+  "auth.warning": "경고: {detail}",
+  "auth.saved": "{platform} 연결 완료: @{username} (프로필 {profile}, 교환 경로 {route}). 기록한 키: {keys}. 값은 어디에도 출력하지 않는다.",
+  "auth.instagram.manual": "instagram 교환은 아직 자동이 아니다. 남은 단계는 사람이 한다:"
 }
