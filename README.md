@@ -56,6 +56,10 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
 - 지각분은 `late_policy`: `carry_once`(다음 슬롯 1회 이월, 기본) 또는 `drop`. 이월은 1회뿐이고
   두 번째는 폐기 + 승인 해제다. 무상한 지각 자동발행은 없다.
 - 프로필·플랫폼별 `daily_cap`을 넘으면 그 런은 건너뛴다.
+- 지각 유예는 **900초 고정**이다(§10 결정5). 슬롯 +15분 안이면 그대로 발행하고, 넘으면
+  `late_policy`로 넘어간다.
+- P0에는 자동승인이 없다(§10 결정1). 승인은 사람이 한다. P1에서 프로필 옵션
+  `auto_approve`(기본 false)가 들어오더라도 `armed` 게이트는 그대로 남는다.
 - `repeat_guard`는 큐 적재 때 통과했어도 **발행 직전에 다시** 돈다.
 - 토큰 만료 7일 전부터 tick이 경고를 띄운다.
 - 네이버는 로그인된 aside 브라우저 세션이 필요하다. 없으면 `NAVER_SESSION_MISSING`으로
@@ -123,6 +127,43 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
 - TikTok 직접 API는 미심사 앱이면 비공개 게시만 된다. 그래서 Higgsfield MCP 경로를 쓴다.
 - YouTube: 미검증 GCP 앱 업로드는 private 고정. `publishAt`은 private + 미래 시각일 때만 먹는다.
 - 네이버: 공개 글쓰기 API가 없다. aside 브라우저로 에디터를 조작한다.
+
+## 미디어 호스팅 버킷 / BYO media bucket
+
+Threads·Instagram의 IMAGE·VIDEO와 TikTok import 경로는 **플랫폼 서버가 직접 URL을 가져간다**.
+그래서 공개 HTTPS URL이 필요하고, 그 URL은 **사용자 본인의 Supabase 프로젝트**에서 나온다
+(§10 결정7 — 남의 버킷을 공유하지 않는다. 남의 프로젝트에 내 미디어를 올리면 그 쪽 요금·
+수명·삭제 정책에 내 발행이 묶인다).
+
+셋업:
+
+1. Supabase 프로젝트를 만들고 Storage에서 **public** 버킷 1개를 만든다 (기본 이름
+   `contents-factory`, 바꾸려면 `SUPABASE_BUCKET`).
+2. `credentials.env`에 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`를 넣는다.
+   service role 키는 서버 전용이다 — 클라이언트·로그·커밋 어디에도 노출 금지.
+3. 업로드 경로는 `<profile>/<queue_item_id>/<filename>`이고 공개 URL은
+   `{SUPABASE_URL}/storage/v1/object/public/<bucket>/<path>`다.
+
+**7일 수명 정책**: 발행이 끝난 미디어는 플랫폼이 자기 CDN에 복사해 두므로 버킷에 남겨둘
+이유가 없다. 7일 뒤 지우는 걸 기본으로 한다 (발행 실패·재시도·검수 여유를 합친 값).
+
+```sql
+-- 버킷 정책 예시: public read, 쓰기는 service role만
+create policy "public read"
+  on storage.objects for select
+  using (bucket_id = 'contents-factory');
+
+-- 7일 지난 객체 정리 (pg_cron). Storage 는 자동 수명 정책이 없어서 잡으로 돈다.
+select cron.schedule(
+  'contents-factory-media-ttl', '17 4 * * *',
+  $$delete from storage.objects
+     where bucket_id = 'contents-factory'
+       and created_at < now() - interval '7 days'$$
+);
+```
+
+버킷을 직접 쓰지 않을 거면 `media[].public_url`을 큐 적재 시점에 채워 넣으면 된다.
+그 경우 `media_host`는 아무것도 하지 않고 그 URL을 그대로 쓴다 (BYO 호스팅).
 
 ## 프롬프트 캐싱 / Prompt caching
 
