@@ -12,7 +12,7 @@ from ..errors import FactoryError
 from ..scheduler.tick import next_slot
 from ..spec.brief import load_brief
 from ..spec.profile import load_profile
-from ..spec.queue import Media, QueueItem, parse_stamp, utc_stamp
+from ..spec.queue import IN_FLIGHT, Media, QueueItem, parse_stamp, utc_stamp
 from .store import QueueStore, new_item_id
 
 
@@ -47,6 +47,13 @@ def build_parser(parent: argparse._SubParsersAction) -> None:
     arm.add_argument("--item", required=True)
     arm.add_argument("--reason", required=True)
 
+    reschedule = actions.add_parser("reschedule", help="move an item to another slot")
+    reschedule.add_argument("item_id", nargs="?",
+                            help="queue id; --item is accepted too")
+    reschedule.add_argument("--item", dest="item_flag")
+    reschedule.add_argument("--slot", default="next",
+                            help="next | YYYY-MM-DDTHH:MM:SSZ")
+
     reopen = actions.add_parser("reopen",
                                 help="clear an unknown delivery phase after checking "
                                      "the platform by hand")
@@ -60,7 +67,10 @@ def build_parser(parent: argparse._SubParsersAction) -> None:
 
 def _resolve_slot(raw: str, *, slots: tuple[str, ...], now: datetime) -> str:
     if raw and raw != "next":
-        parse_stamp(raw)
+        try:
+            parse_stamp(raw)
+        except ValueError:
+            raise FactoryError("SLOT_INVALID", str(raw)[:32]) from None
         return raw
     target = next_slot(slots, now)
     if target is None:
@@ -148,13 +158,31 @@ def run(config: Config, args: argparse.Namespace) -> int:
     if args.queue_command == "disarm":
         print(store.disarm(args.item).id)
         return 0
+    if args.queue_command == "reschedule":
+        item_id = args.item_id or args.item_flag
+        if not item_id:
+            raise FactoryError("ITEM_REQUIRED", "reschedule")
+        current = store.get(item_id)
+        if current.phase in IN_FLIGHT or current.phase == "unknown":
+            # Moving the slot of an unconfirmed delivery hides the real problem.
+            raise FactoryError("DELIVERY_UNCONFIRMED", current.phase)
+        profile = load_profile(current.profile, home=home, repo=repo_root())
+        slots = tuple(profile.platform(current.platform).slots)
+        target = _resolve_slot(args.slot, slots=slots, now=now)
+        moved = store.reschedule(item_id, target)
+        print(translate("queue.rescheduled", item_id=moved.id,
+                        scheduled_at=moved.scheduled_at))
+        return 0
     if args.queue_command == "reopen":
         item = store.reopen_delivery(args.item, args.reason)
         print(translate("queue.reopened", item_id=item.id, reason=args.reason))
         return 0
     if args.queue_command == "purge":
         before = args.before or utc_stamp(now)
-        parse_stamp(before)
+        try:
+            parse_stamp(before)
+        except ValueError:
+            raise FactoryError("BEFORE_INVALID", str(before)[:32]) from None
         removed = store.purge(before=before, published_only=not args.include_unpublished)
         print(f"purged {removed}")
         return 0

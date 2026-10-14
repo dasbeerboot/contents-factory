@@ -101,6 +101,8 @@ factory gate run --brief b_... --gate caption_safe_zone --box 220,1200,600,180,c
 - `caption_safe_zone` works now: pass the caption box coordinates. The zone comes from the
   format's `safe_zone_px` (x 200..880, y 290..1430 on 1080x1920) and scales to other frames.
   A violation means **reassemble the frame**, not shrink the text.
+- `cta_single` works now: more than one ask in the script is a FAIL, and the limit comes
+  from the format's `cta_max`.
 - `stt_wpm`, `limb_motion`, `bg_motion`, `identity`, `start_freeze`, `text_legibility`,
   `viewer_voice_sync`, `timing`, `export_size` all print `SKIP:NOT_IMPLEMENTED` in P0.
   Those are your eyes and ears. Report which were human checks.

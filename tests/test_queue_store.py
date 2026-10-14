@@ -154,3 +154,77 @@ def test_written_file_is_sorted_json(isolated_home: Path) -> None:
     raw = json.loads(store.day_path("2026-10-15").read_text(encoding="utf-8"))
     assert [row["scheduled_at"] for row in raw["items"]] == ["2026-10-15T12:00:00Z",
                                                              "2026-10-15T13:00:00Z"]
+
+
+def test_reschedule_refuses_a_published_item(isolated_home: Path) -> None:
+    store = QueueStore(isolated_home)
+    item = store.add(make_item())
+    store.approve(item.id)
+    store.arm(item.id, "owner approved in chat")
+    store.mark_published(item.id, "1")
+    with pytest.raises(FactoryError) as error:
+        store.reschedule(item.id, "2026-10-16T12:00:00Z")
+    assert error.value.code == "QUEUE_ALREADY_PUBLISHED"
+
+
+def test_reschedule_rejects_a_bad_stamp(isolated_home: Path) -> None:
+    store = QueueStore(isolated_home)
+    item = store.add(make_item())
+    with pytest.raises(ValueError):
+        store.reschedule(item.id, "2026-10-16 12:00")
+
+
+def test_cli_reschedule_explicit_and_next(isolated_home: Path,
+                                          capsys: pytest.CaptureFixture[str]) -> None:
+    from factory.cli import main
+    store = QueueStore(isolated_home)
+    item = store.add(make_item())
+    assert main(["queue", "reschedule", item.id, "--slot",
+                 "2026-10-20T23:00:00Z"]) == 0
+    assert "2026-10-20T23:00:00Z" in capsys.readouterr().out
+    assert store.get(item.id).scheduled_at == "2026-10-20T23:00:00Z"
+    assert store.day_path("2026-10-20").is_file()
+    assert store.list(day="2026-10-15") == []
+
+    assert main(["queue", "reschedule", "--item", item.id, "--slot", "next"]) == 0
+    capsys.readouterr()
+    moved = store.get(item.id)
+    assert moved.scheduled_at.endswith(("T12:00:00Z", "T23:00:00Z"))
+    assert moved.carry_count == 0
+
+
+def test_cli_reschedule_needs_an_id(isolated_home: Path,
+                                    capsys: pytest.CaptureFixture[str]) -> None:
+    from factory.cli import main
+    assert main(["queue", "reschedule", "--slot", "next"]) == 3
+    assert "ITEM_REQUIRED" in capsys.readouterr().err
+
+
+def test_cli_reschedule_refuses_an_unconfirmed_delivery(
+        isolated_home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from factory.cli import main
+    store = QueueStore(isolated_home)
+    item = store.add(make_item())
+    store.begin_delivery(item.id)
+    store.delivery_unknown(item.id, "HTTP_502")
+    assert main(["queue", "reschedule", item.id, "--slot", "next"]) == 3
+    assert "DELIVERY_UNCONFIRMED" in capsys.readouterr().err
+    assert store.get(item.id).scheduled_at == "2026-10-15T12:00:00Z"
+
+
+def test_cli_reschedule_rejects_a_bad_slot(isolated_home: Path,
+                                           capsys: pytest.CaptureFixture[str]) -> None:
+    """A bad slot is a code-form error, never a traceback."""
+    from factory.cli import main
+    store = QueueStore(isolated_home)
+    item = store.add(make_item())
+    assert main(["queue", "reschedule", item.id, "--slot", "tomorrow"]) == 3
+    assert "SLOT_INVALID" in capsys.readouterr().err
+    assert store.get(item.id).scheduled_at == "2026-10-15T12:00:00Z"
+
+
+def test_cli_purge_rejects_a_bad_before(isolated_home: Path,
+                                        capsys: pytest.CaptureFixture[str]) -> None:
+    from factory.cli import main
+    assert main(["queue", "purge", "--before", "yesterday"]) == 3
+    assert "BEFORE_INVALID" in capsys.readouterr().err

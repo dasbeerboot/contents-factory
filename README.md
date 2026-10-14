@@ -36,9 +36,11 @@ factory gen text  --brief b_... [--dry-run]
 factory gen image --brief b_... [--dry-run]   # higgsfield CLI argv 조립, --dry-run은 호출 없음
 factory gate run (--brief b_... | --text "...") [--format threads_post] [--gate repeat_guard]
                  [--box x,y,width,height[,label]]      # caption_safe_zone 입력
+                 [--item q_...]                        # duplicate_copy 자기 제외
 factory queue add --platform threads [--brief b_... --output 0] [--text "..."]
                   [--media path --public-url url] [--slot next|2026-10-15T12:00:00Z]
 factory queue list [--pending] [--json] | approve | unapprove | arm --reason "..." | disarm | purge
+factory queue reschedule q_... --slot next|<ISO>   # 슬롯 이동 (발행본·미확정 배송은 거부)
 factory queue reopen --item q_... --reason "..."   # unknown phase 해제 (사람 확인 후)
 factory publish <platform> --item q_... [--dry-run]
 factory schedule install|remove|status [--runner launchd|cron] | tick [--dry-run]
@@ -190,7 +192,7 @@ factory/
   spec/{brief,profile,queue,format}.py
   formats/{text,image,video}/*.yaml
   generators/text.py          Anthropic claude-sonnet-5 + 캐싱
-  gates/{repeat_guard,forbidden_words,limits,caption_safe_zone}.py
+  gates/{repeat_guard,forbidden_words,limits,caption_safe_zone,cta_single,duplicate_copy}.py
   generators/image.py         higgsfield CLI 래퍼 (argv 조립 + dry-run)
   rules.py                    docs/rules 절 단위 리더 (캐싱 프리픽스용)
   queue/{store,cli}.py        큐 CRUD 단일 소유자

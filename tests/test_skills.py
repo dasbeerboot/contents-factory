@@ -109,8 +109,11 @@ def test_no_skill_leaks_a_persona_or_a_client_name() -> None:
 
 
 def test_tick_reasons_in_the_publish_skill_exist_in_the_code() -> None:
+    """Every code quoted at the user must be one the code can actually emit."""
+    from factory.queue import store as queue_store
     from factory.scheduler import tick
-    source = Path(tick.__file__).read_text(encoding="utf-8")
+    source = "\n".join(Path(module.__file__).read_text(encoding="utf-8")
+                       for module in (tick, queue_store))
     body = (SKILLS_DIR / "publish" / "SKILL.md").read_text(encoding="utf-8")
     for reason in re.findall(r"`([A-Z][A-Z_]{4,})(?::\.\.\.)?`", body):
         if reason in {"UTC"}:

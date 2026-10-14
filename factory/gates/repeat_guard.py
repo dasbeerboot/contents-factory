@@ -122,12 +122,17 @@ def _epoch(stamp: str) -> float | None:
     return float(base)
 
 
-def collect(home: Path, profile: str, *, now: float | None = None,
-            window_days: int | None = None) -> list[tuple[float, str, str]]:
-    """Published texts for the profile inside the window. Broken files are skipped."""
+def collect_items(home: Path, profile: str, *, now: float | None = None,
+                  window_days: int | None = None,
+                  published_only: bool = True) -> list[dict[str, Any]]:
+    """Queue rows for the profile inside the window. Broken files are skipped.
+
+    `published_only=False` includes items still waiting in the queue, which is what
+    duplicate_copy needs: queueing the same copy twice is a duplicate before it ships.
+    """
     moment = time.time() if now is None else float(now)
     floor = moment - (window_days or WINDOW_DAYS) * 86400
-    out: list[tuple[float, str, str]] = []
+    out: list[dict[str, Any]] = []
     directory = _queue_dir(home)
     try:
         names = sorted(path for path in directory.glob("*.json"))
@@ -144,13 +149,27 @@ def collect(home: Path, profile: str, *, now: float | None = None,
         for row in rows:
             if not isinstance(row, dict) or row.get("profile") != profile:
                 continue
-            if not row.get("published") or not str(row.get("text") or "").strip():
+            published = bool(row.get("published"))
+            if published_only and not published:
+                continue
+            if not str(row.get("text") or "").strip():
                 continue
             stamp = _epoch(str(row.get("published_at") or row.get("scheduled_at") or ""))
             if stamp is None or stamp < floor:
                 continue
-            out.append((stamp, str(row.get("platform") or "queue"), str(row["text"])))
+            out.append({"id": str(row.get("id") or ""),
+                        "ts": stamp,
+                        "platform": str(row.get("platform") or "queue"),
+                        "published": published,
+                        "text": str(row["text"])})
     return out
+
+
+def collect(home: Path, profile: str, *, now: float | None = None,
+            window_days: int | None = None) -> list[tuple[float, str, str]]:
+    """Published texts for the profile inside the window."""
+    return [(row["ts"], row["platform"], row["text"])
+            for row in collect_items(home, profile, now=now, window_days=window_days)]
 
 
 def _cache_path(home: Path, profile: str) -> Path:

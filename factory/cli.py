@@ -12,7 +12,8 @@ from . import i18n, ledger, rules
 from .config import Config, init_home, load_config, repo_root
 from .credentials import load_profile_env
 from .errors import FactoryError
-from .gates import caption_safe_zone, forbidden_words, limits, repeat_guard
+from .gates import (caption_safe_zone, cta_single, duplicate_copy,
+                    forbidden_words, limits, repeat_guard)
 from .generators import image as image_generator
 from .generators import text as text_generator
 from .publishers import publisher_for, required_env
@@ -78,6 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
     gate_run.add_argument("--gate", action="append", default=[])
     gate_run.add_argument("--box", action="append", default=[],
                           help="caption box as x,y,width,height[,label]; repeatable")
+    gate_run.add_argument("--item",
+                          help="queue id being re-checked, excluded from duplicate_copy")
 
     queue_cli.build_parser(commands)
 
@@ -275,7 +278,8 @@ def _brief(config: Config, args: argparse.Namespace) -> int:
 
 
 IMPLEMENTED_GATES: tuple[str, ...] = ("limits", "forbidden_words", "repeat_guard",
-                                      "caption_safe_zone")
+                                      "caption_safe_zone", "cta_single",
+                                      "duplicate_copy")
 TEXT_DEFAULT_GATES: tuple[str, ...] = ("limits", "forbidden_words", "repeat_guard")
 
 
@@ -312,7 +316,8 @@ def _parse_boxes(raw: Sequence[str]) -> list[dict[str, object]]:
 def _gate_results(config: Config, *, body: str, profile: Profile,
                   kind: str, format_name: str | None,
                   selected: Sequence[str],
-                  boxes: Sequence[dict[str, object]] = ()) -> list[tuple[str, str, str]]:
+                  boxes: Sequence[dict[str, object]] = (),
+                  exclude_id: str | None = None) -> list[tuple[str, str, str]]:
     spec = load_format(kind, format_name) if format_name else None
     rules = spec.limits if spec else {}
     results: list[tuple[str, str, str]] = []
@@ -329,6 +334,15 @@ def _gate_results(config: Config, *, body: str, profile: Profile,
             allowed, reason = repeat_guard.check(body, home=config.home_path,
                                                  profile=profile.name,
                                                  closers=profile.closers)
+            results.append((gate, terminal.PASS if allowed else terminal.FAIL, reason))
+        elif gate == "cta_single":
+            report = cta_single.check(body, rules)
+            results.append((gate, terminal.PASS if report.ok else terminal.FAIL,
+                            ",".join(report.violations)))
+        elif gate == "duplicate_copy":
+            allowed, reason = duplicate_copy.check(body, home=config.home_path,
+                                                   profile=profile.name,
+                                                   exclude_id=exclude_id, limits=rules)
             results.append((gate, terminal.PASS if allowed else terminal.FAIL, reason))
         elif gate == "caption_safe_zone":
             if not boxes:
@@ -363,7 +377,7 @@ def _gate(config: Config, args: argparse.Namespace) -> int:
     for label, body in bodies:
         results = _gate_results(config, body=body, profile=profile, kind=kind,
                                 format_name=format_name, selected=args.gate,
-                                boxes=boxes)
+                                boxes=boxes, exclude_id=getattr(args, "item", None))
         print(f"[{label}]")
         print(terminal.gate_table(results, lang=config.ui_lang))
         failed = failed or any(status == terminal.FAIL

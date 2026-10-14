@@ -107,6 +107,13 @@ A FAIL is not a veto you override silently:
 - `forbidden_words` fail: the phrase is out, no negotiation.
 - `repeat_guard` fail: it already went out. Rewrite the structure, do not reword a sentence.
   `factory gate run --brief b_... --gate repeat_guard` re-checks.
+- `cta_single` fail: two or more asks. Keep one and cut the rest; a reader given three
+  actions takes none. `body_cta_allowed: false` formats also reject an ask before the
+  closing line.
+- `duplicate_copy` fail: this copy already exists in the queue, published or not. The id in
+  the reason tells you which item. Re-checking a queued item needs
+  `factory gate run --item q_... --gate duplicate_copy --text "..."` so it does not
+  match itself.
 
 ## Step 5: queue
 

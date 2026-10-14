@@ -54,5 +54,6 @@
   "delivery.reopen_refused": "Not reopened: {item_id} still carries a container or a published id, so the post may exist. Check the platform first.",
   "delivery.resume": "{item_id} already has a container, so the next tick only finishes the publish step. Nothing is created twice.",
   "queue.reopened": "{item_id} is back to ready. Reason on record: {reason}",
-  "media.public_url_required": "{platform} fetches media from a URL, so a local path cannot be posted. Fill media public_url first."
+  "media.public_url_required": "{platform} fetches media from a URL, so a local path cannot be posted. Fill media public_url first.",
+  "queue.rescheduled": "{item_id} moved to {scheduled_at}."
 }

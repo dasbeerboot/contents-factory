@@ -43,12 +43,14 @@ An item's slot comes from `platforms.json` when it is queued with `--slot next`,
 explicit UTC stamp. To move one:
 
 ```
-factory queue list --json | <find the id>
-factory queue add ... --slot 2026-10-15T12:00:00Z    # new item
+factory queue reschedule q_... --slot next
+factory queue reschedule q_... --slot 2026-10-15T12:00:00Z
 ```
 
-There is no reschedule command for an already queued item in P0. If the slot is wrong, say
-so plainly: unapprove it, let it drop or purge it, and queue the corrected one.
+`--slot next` takes the next configured slot for that item's platform. A published item is
+refused (`QUEUE_ALREADY_PUBLISHED`), and so is one whose delivery phase is in flight or
+`unknown` (`DELIVERY_UNCONFIRMED`): moving the slot there would hide the real problem, so
+settle the delivery first.
 
 ## Step 3: approve, then arm
 
