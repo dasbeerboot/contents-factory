@@ -1,0 +1,46 @@
+{
+  "threads": {
+    "enabled": true,
+    "account_id": null,
+    "slots": ["12:00Z", "23:00Z"],
+    "late_policy": "carry_once",
+    "cta_rotation": [
+      "Tell me which part you would have done differently.",
+      "If you have shipped this, what broke first?",
+      "Steal the checklist, skip the story."
+    ],
+    "daily_cap": 2
+  },
+  "instagram": {
+    "enabled": false,
+    "account_id": null,
+    "slots": ["01:00Z"],
+    "late_policy": "carry_once",
+    "cta_rotation": [],
+    "daily_cap": 1
+  },
+  "tiktok": {
+    "enabled": false,
+    "account_id": null,
+    "slots": ["12:00Z"],
+    "late_policy": "drop",
+    "cta_rotation": [],
+    "daily_cap": 1
+  },
+  "youtube": {
+    "enabled": false,
+    "account_id": null,
+    "slots": ["01:00Z"],
+    "late_policy": "carry_once",
+    "cta_rotation": [],
+    "daily_cap": 1
+  },
+  "naver_blog": {
+    "enabled": false,
+    "account_id": null,
+    "slots": ["02:00Z"],
+    "late_policy": "carry_once",
+    "cta_rotation": [],
+    "daily_cap": 1
+  }
+}

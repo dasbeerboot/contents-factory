@@ -1,0 +1,7 @@
+{
+  "provider": "elevenlabs",
+  "voice_id": null,
+  "model": "eleven_v3",
+  "stability": 0.45,
+  "style": 0.3
+}

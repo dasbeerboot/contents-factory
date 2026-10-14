@@ -1,0 +1,10 @@
+{
+  "provider": "higgsfield",
+  "soul_id": null,
+  "ref_image": null,
+  "identity_rules": [
+    "One reference image is the source of truth for the face. Compare side by side, never by score.",
+    "Do not describe the face in the prompt. Long facial descriptions drift the identity.",
+    "Keep skin texture. Smoothing reads as a different person."
+  ]
+}

@@ -1,3 +1,148 @@
 # contents-factory
 
-글·이미지·영상 제작 + 5개 플랫폼(Threads·Instagram·TikTok·YouTube·네이버 블로그) 자동발행 스킬팩. 기획 `docs/PLAN.md`, 구현 스펙 `docs/P0-SPEC.md`.
+글·이미지·영상 제작 + 5개 플랫폼(Threads·Instagram·TikTok·YouTube·네이버 블로그) 자동발행
+스킬팩. 페르소나는 프로필로 갈아끼운다. 기획 `docs/PLAN.md`, 구현 스펙 `docs/P0-SPEC.md`.
+
+Interview-driven content generation plus scheduled publishing to five platforms. The persona
+lives in a profile directory, not in the code. Plan: `docs/PLAN.md`, P0 spec: `docs/P0-SPEC.md`.
+
+## 설치 / Install
+
+```sh
+uv sync
+uv run factory init        # creates ~/.contents-factory and copies factory.toml
+uv run pytest
+```
+
+Python 3.11+. `node` is required for the Naver publisher, `aside` for its browser session.
+
+## 🚨 상태파일은 CLI로만 / State is CLI-only
+
+`~/.contents-factory/` 밑(`queue/`, `briefs/`, `state/`)은 **`factory` 명령만** 쓴다.
+세션이나 사람이 손으로 json을 고치면 스케줄러가 죽는다. 전용 명령이 없는 변경이 필요하면
+명령을 먼저 추가한다.
+
+Everything under `~/.contents-factory/` is written only by `factory` commands. Hand editing
+the json is how the scheduler dies.
+
+## 명령 / Commands
+
+```
+factory init
+factory profile add <name> [--from _example] | list | show [name]
+factory brief new --kind text --format threads_post [--profile X] [--answers file|-]
+factory brief show --brief b_...
+factory gen text --brief b_... [--dry-run]
+factory gate run (--brief b_... | --text "...") [--format threads_post] [--gate repeat_guard]
+factory queue add --platform threads [--brief b_... --output 0] [--text "..."]
+                  [--media path --public-url url] [--slot next|2026-10-15T12:00:00Z]
+factory queue list [--pending] [--json] | approve | unapprove | arm --reason "..." | disarm | purge
+factory publish <platform> --item q_... [--dry-run]
+factory schedule install|remove|status [--runner launchd|cron] | tick [--dry-run]
+factory token refresh [--profile X] [--platform threads|instagram] [--dry-run]
+factory ledger summary [--days 30]
+factory i18n get <key> [--lang ko|en] | keys | missing --lang ko
+factory formats [--kind text|image|video]
+```
+
+`python -m factory ...` 도 같은 엔트리다.
+
+## 발행 규칙 / Publishing rules
+
+- **승인 ≠ 발행.** 슬롯 시각(UTC)에 tick이 발행한다. `factory publish`의 실발행은 수동
+  예외이고, 승인·무장이 둘 다 돼 있어야 받는다.
+- **armed=false면 approved여도 안 나간다.** `arm`은 근거 문자열이 필수다.
+- 지각분은 `late_policy`: `carry_once`(다음 슬롯 1회 이월, 기본) 또는 `drop`. 이월은 1회뿐이고
+  두 번째는 폐기 + 승인 해제다. 무상한 지각 자동발행은 없다.
+- 프로필·플랫폼별 `daily_cap`을 넘으면 그 런은 건너뛴다.
+- `repeat_guard`는 큐 적재 때 통과했어도 **발행 직전에 다시** 돈다.
+- 토큰 만료 7일 전부터 tick이 경고를 띄운다.
+- 네이버는 로그인된 aside 브라우저 세션이 필요하다. 없으면 `NAVER_SESSION_MISSING`으로
+  큐에 그대로 남는다.
+
+## 프로필 / Profile
+
+`profiles/<name>/` (레포 예시) 또는 `~/.contents-factory/profiles/<name>/` (운영본).
+
+| 파일 | 내용 |
+|---|---|
+| `persona.md` | 정체·말투·금지 표현·시그니처. system 프리픽스에 통째로 들어간다 |
+| `brand.md` | 로고·색·폰트·레퍼런스 우선순위 |
+| `voice.json` | `{provider, voice_id, model, stability, style}` |
+| `soul.json` | `{provider, soul_id, ref_image, identity_rules}` |
+| `platforms.json` | 플랫폼별 `{enabled, account_id, slots, late_policy, cta_rotation, daily_cap}` |
+| `forbidden.txt` | 금지어 한 줄 1개 |
+| `closers.txt` | 반복 감시할 고정 클로저 문구 |
+| `writer_rules.md` | 추가 작성 규칙 (system 프리픽스) |
+| `locale` | content_lang 기본값 |
+| `credentials.env` | **런타임 홈에만.** chmod 600. 키 목록은 아래 |
+
+`slots`는 `"12:00Z"` 꼴 UTC만 받는다.
+
+## credentials.env 키 / Credential keys
+
+`~/.contents-factory/profiles/<name>/credentials.env`, 한 줄에 `KEY=value`, chmod 600.
+값은 어떤 출력에도 안 나온다 (`--dry-run` 페이로드엔 `<REDACTED:KEY>`로 찍힌다).
+
+| 용도 | 필수 키 | 선택 키 |
+|---|---|---|
+| Threads | `THREADS_ACCESS_TOKEN`, `THREADS_USER_ID` | `THREADS_TOKEN_ISSUED_AT`(refresh가 기록) |
+| Instagram | `IG_ACCESS_TOKEN`, `IG_USER_ID` | `IG_TOKEN_ISSUED_AT`, `IG_APP_ID`, `IG_APP_SECRET` |
+| TikTok (Higgsfield MCP) | `HIGGSFIELD_MCP_TOKEN`, `TIKTOK_CONNECTOR_ID` | - |
+| YouTube | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` | `YOUTUBE_ACCESS_TOKEN`(단기 폴백) |
+| 네이버 블로그 | `NAVER_BLOG_ID` | `FACTORY_ASIDE_BIN`(기본 `aside`) |
+| 미디어 호스팅 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | `SUPABASE_BUCKET`(기본 `contents-factory`) |
+| 텍스트 생성 | `ANTHROPIC_API_KEY` | - |
+
+플랫폼 제약 (사실, 2026-10 기준):
+
+- Threads/IG: Meta 앱이 필요하다. 개발 모드 앱은 테스터 역할 계정만 OAuth가 된다.
+- Threads/IG의 IMAGE·VIDEO와 TikTok import 경로는 **공개 HTTPS URL**이 필요하다. 서버가
+  직접 가져가므로 로컬 경로 업로드가 안 된다. `media_host`(Supabase) 또는 BYO로 채운다.
+- TikTok 직접 API는 미심사 앱이면 비공개 게시만 된다. 그래서 Higgsfield MCP 경로를 쓴다.
+- YouTube: 미검증 GCP 앱 업로드는 private 고정. `publishAt`은 private + 미래 시각일 때만 먹는다.
+- 네이버: 공개 글쓰기 API가 없다. aside 브라우저로 에디터를 조작한다.
+
+## 프롬프트 캐싱 / Prompt caching
+
+`workspace/LLM-API-캐싱-규칙.md` 준수. system 블록(persona + format + rules + 출력 스키마)이
+불변 프리픽스이고 날짜·슬롯·앵글 같은 가변값은 전부 user 메시지로 간다. sonnet-5의 최소
+프리픽스는 1,024토큰이라 **persona가 짧으면 마커가 조용히 무시된다** — `factory gen text
+--dry-run`이 `cache_control`과 프리픽스 추정 토큰을 찍어주니 거기서 확인한다. 2회째 호출에
+`cache_read_input_tokens`가 0이면 생성기가 WARN을 남긴다.
+
+## 레이아웃 / Layout
+
+```
+factory/
+  cli.py __main__.py config.py credentials.py errors.py ledger.py
+  i18n/{ko,en}.json           인터뷰·리포트 문구 (영문 점표기 키)
+  spec/{brief,profile,queue,format}.py
+  formats/{text,image,video}/*.yaml
+  generators/text.py          Anthropic claude-sonnet-5 + 캐싱
+  gates/{repeat_guard,forbidden_words,limits,caption_safe_zone}.py
+  queue/{store,cli}.py        큐 CRUD 단일 소유자
+  scheduler/{tick,launchd,cron,token_refresh}.py
+  publishers/{base,threads,instagram,tiktok,youtube,naver_blog,media_host}.py
+  publishers/naver/*.mjs      pilot에서 벤더링한 aside 에디터 조작
+  review/terminal.py
+profiles/_example/            영문 예시 페르소나 (사주 아님)
+.claude/skills/writing-factory/SKILL.md
+tests/
+```
+
+## 이식 출처 / Ported from
+
+| 팩토리 | 원본 |
+|---|---|
+| `gates/repeat_guard.py` | `~/.saju-threads/scripts/repeat_guard.py` |
+| `publishers/threads.py` | `publish.sh`, `threads_delivery.py` |
+| `publishers/instagram.py` | `ig_publish.sh`, `ig_preview.sh` |
+| `publishers/tiktok.py` | `tiktok_publish.py` |
+| `publishers/youtube.py` | `yt_upload.py`, `yt_oauth.py`, `platform_cta.py` |
+| `publishers/naver/*` | `pilot/scripts/naver/{publish,md_to_document}.mjs`, `lib/{aside,document}.mjs` |
+| `scheduler/token_refresh.py` | `token_refresh.sh` |
+| `queue/`, `scheduler/tick.py` | `queue_autopub.py`, `com.saju.publish.plist` |
+| `generators/text.py` | `persona_writer.py` |
+
+원 레포는 읽기 전용 참조다. 운영 파이프라인은 건드리지 않는다.
