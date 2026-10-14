@@ -54,8 +54,16 @@
 - [x] ✅ 원장 멱등키 `ledger.charge(op=...)` — 작업 1건 = 과금 1건
 
 ## P1
-- [ ] ❌ TikTok MCP 토큰이 24h 만료인데 팩토리는 정적 `HIGGSFIELD_MCP_TOKEN` 만 읽는다.
-      원본 파이프라인은 refresh_token 으로 조용히 갱신한다 — 갱신 경로 이식 필요
+- [x] ✅ TikTok MCP 토큰 만료 — 정적 `HIGGSFIELD_MCP_TOKEN` 폐기. 인증은 CLI
+      (`higgsfield auth login`)이고 bearer 는 매 요청 직전 `higgsfield auth token` 이다.
+      키가 없으니 갱신 명령도 없다 (`factory/higgsfield.py`)
+- [x] ✅ Windows 지원 — `factory init --os`, `scheduler/windows.py`(schtasks),
+      `osinfo.py`(which/.exe·icacls·홈 경로), `factory doctor`, 네이버 playwright 백엔드.
+      실제 Windows 호스트 검증은 **미실시** (macOS에서 모킹 테스트만)
+- [ ] ❌ Windows 실기 검증 1회 — init·doctor·schedule install(schtasks)·naver login·
+      publish --dry-run 을 실제 Windows 호스트에서 돌려볼 것
+- [ ] ❌ 네이버 playwright 백엔드 실발행 1건 (테스트 블로그, 사람 입회).
+      현재 dry-run·로그인 창까지만 실측
 - [ ] ❌ `factory auth instagram` 교환 구현 (현재 동의 URL + 수동 절차만)
 - [ ] ❌ `factory auth threads` 실사용 검증 (지인 계정 1건)
 - [ ] ❌ 엔드카드 수정 후 신규 테이크 1건 — 재조립본은 옛 테이크라 모델이 구운

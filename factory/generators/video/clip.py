@@ -27,6 +27,7 @@ from typing import Any, Sequence  # noqa: F401  (Sequence used in signatures)
 from ... import media
 from ...errors import FactoryError, scrub
 from .. import fetch
+from ...osinfo import which
 from ..image import BINARY, DEFAULT_TIMEOUT_SECONDS, parse_output, result_paths
 
 MODEL = "seedance_2_0"
@@ -120,10 +121,11 @@ def build_cost_command(take: Take, *, model: str = MODEL,
 
 
 def _run(command: Sequence[str], timeout: int) -> dict[str, Any]:
-    if shutil.which(BINARY) is None:
+    if which(BINARY) is None:
         raise FactoryError("HIGGSFIELD_CLI_MISSING")
+    argv = [which(command[0]) or command[0], *list(command)[1:]]
     try:
-        done = subprocess.run(list(command), capture_output=True, text=True,
+        done = subprocess.run(argv, capture_output=True, text=True,
                               timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
         raise FactoryError("HIGGSFIELD_TIMEOUT") from None

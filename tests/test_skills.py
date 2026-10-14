@@ -84,11 +84,37 @@ def test_setup_covers_the_meta_tester_dance_and_key_names() -> None:
     for phrase in ("tester", "Website permissions", "redirect URL",
                    "character for character"):
         assert phrase in body, phrase
-    for key in ("THREADS_ACCESS_TOKEN", "IG_ACCESS_TOKEN", "HIGGSFIELD_MCP_TOKEN",
-                "YOUTUBE_REFRESH_TOKEN", "SUPABASE_SERVICE_ROLE_KEY",
-                "ANTHROPIC_API_KEY"):
+    for key in ("THREADS_ACCESS_TOKEN", "IG_ACCESS_TOKEN", "YOUTUBE_REFRESH_TOKEN",
+                "SUPABASE_SERVICE_ROLE_KEY", "ANTHROPIC_API_KEY"):
         assert key in body, key
     assert "connector_id" in body and "blog_id" in body
+
+
+def test_setup_has_no_static_higgsfield_key() -> None:
+    """Higgsfield auth is the CLI login; a pasteable key would be wrong to ask for."""
+    body = (SKILLS_DIR / "setup" / "SKILL.md").read_text(encoding="utf-8")
+    assert "HIGGSFIELD_MCP_TOKEN" not in body
+    assert "higgsfield auth login" in body
+    assert "higgsfield auth token" in body
+
+
+def test_setup_asks_the_os_question_first_and_runs_doctor() -> None:
+    body = (SKILLS_DIR / "setup" / "SKILL.md").read_text(encoding="utf-8")
+    first = body.split("## Step 0")[0]
+    assert "운영체제" in first, "the OS question comes before anything else"
+    assert "factory init --os" in first
+    assert "factory doctor" in first
+    for platform_word in ("macOS", "Windows", "Linux"):
+        assert platform_word in first, platform_word
+    # The language question must come after the OS question, not before.
+    assert body.index("운영체제") < body.index("ui_lang")
+
+
+def test_setup_covers_both_naver_backends() -> None:
+    body = (SKILLS_DIR / "setup" / "SKILL.md").read_text(encoding="utf-8")
+    for phrase in ("aside", "playwright", "factory naver login",
+                   "PLAYWRIGHT_MISSING", "NAVER_SESSION_MISSING", "schtasks"):
+        assert phrase in body, phrase
 
 
 def test_publish_skill_lists_the_tick_reasons() -> None:

@@ -29,7 +29,15 @@ RETRY_SAFE: frozenset[str] = frozenset({
     "PHOTO_COUNT_INVALID", "PRIVACY_INVALID", "PUBLISH_AT_INVALID", "PLATFORM_MISMATCH",
     "ACCOUNT_ID_INVALID", "NAVER_SESSION_MISSING", "NODE_MISSING", "NAVER_SCRIPT_MISSING",
     "DOCUMENT_TOO_LARGE", "IMAGE_UPLOAD_UNSUPPORTED", "JOB_INVALID", "BLOG_ID_INVALID",
-    "PUBLISH_MINUTE_NOT_TEN", "TOKEN_REFRESH_FAILED", "MCP_TOKEN_EXPIRED",
+    "PUBLISH_MINUTE_NOT_TEN", "TOKEN_REFRESH_FAILED",
+    # The Higgsfield bearer is fetched per request, so a missing CLI or a dead
+    # login is caught before the first byte: nothing was submitted.
+    "HIGGSFIELD_CLI_MISSING", "HIGGSFIELD_LOGIN_REQUIRED", "NAVER_BACKEND_UNKNOWN",
+    # Naver, before the editor is even open: a missing dependency, a browser that
+    # would not start, or a page state that stopped us. None of them reached Naver.
+    "PLAYWRIGHT_MISSING", "PLAYWRIGHT_LOAD_FAILED", "PLAYWRIGHT_BROWSER_MISSING",
+    "PLAYWRIGHT_LAUNCH_FAILED", "NAVER_PROFILE_MISSING", "MULTIPLE_EDITOR_TABS",
+    "RESUME_CANCEL_MISSING", "PUBLISH_NOT_SENT",
     "TIKTOK_NOT_CONNECTED", "PREPARE_NO_PUBLISH_TOKEN", "CONTAINER_FAILED",
     "REMOTE_REJECTED", "HTTP_400", "HTTP_401", "HTTP_403", "HTTP_404", "HTTP_422",
     "HTTP_429",

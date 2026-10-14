@@ -7,12 +7,12 @@ that knows the binaries might be missing.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Sequence
 
 from .errors import FactoryError, scrub
+from .osinfo import which
 
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
@@ -21,16 +21,17 @@ DEFAULT_TIMEOUT = 1800
 
 def require_binaries() -> None:
     for binary in (FFMPEG, FFPROBE):
-        if shutil.which(binary) is None:
+        if which(binary) is None:
             raise FactoryError("FFMPEG_MISSING", binary)
 
 
 def run(args: Sequence[str], *, binary: str = FFMPEG,
         timeout: int = DEFAULT_TIMEOUT) -> str:
-    if shutil.which(binary) is None:
+    if which(binary) is None:
         raise FactoryError("FFMPEG_MISSING", binary)
     try:
-        done = subprocess.run([binary, *args], capture_output=True, text=True,
+        done = subprocess.run([which(binary) or binary, *args],
+                              capture_output=True, text=True,
                               timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
         raise FactoryError("FFMPEG_TIMEOUT", binary) from None

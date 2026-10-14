@@ -103,7 +103,12 @@ def refresh(home: Path, profile: str, platform: str, *, dry_run: bool = False,
         raise FactoryError("TOKEN_REFRESH_FAILED", platform)
     moment = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     env_set(path, token_key, token)
-    env_set(path, issued_key, moment.strftime("%Y-%m-%d"))
-    return {"platform": platform, "profile": profile, "dry_run": False,
-            "issued_at": moment.strftime("%Y-%m-%d"),
-            "expires_in_days": TOKEN_LIFETIME_DAYS}
+    permission = env_set(path, issued_key, moment.strftime("%Y-%m-%d"))
+    result = {"platform": platform, "profile": profile, "dry_run": False,
+              "issued_at": moment.strftime("%Y-%m-%d"),
+              "expires_in_days": TOKEN_LIFETIME_DAYS}
+    if permission:
+        # This path is unattended (the tick calls it), so a file that could not be
+        # locked down has to be reported rather than dropped on the floor.
+        result["warning"] = permission
+    return result

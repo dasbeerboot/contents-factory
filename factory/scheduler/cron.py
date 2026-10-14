@@ -8,6 +8,13 @@ from pathlib import Path
 BEGIN = "# >>> contents-factory tick >>>"
 END = "# <<< contents-factory tick <<<"
 DEFAULT_SCHEDULE = "*/15 * * * *"
+DEFAULT_INTERVAL_SECONDS = 900
+
+
+def schedule_for(interval_seconds: int = DEFAULT_INTERVAL_SECONDS) -> str:
+    """`--interval` in seconds as a crontab minute field, clamped to 1..59."""
+    minutes = max(1, min(59, int(interval_seconds) // 60))
+    return f"*/{minutes} * * * *"
 
 
 def line(*, home: Path, python: str | None = None,
@@ -61,7 +68,9 @@ def write_crontab(content: str) -> bool:
 
 
 def install(*, home: Path, python: str | None = None,
-            schedule: str = DEFAULT_SCHEDULE) -> bool:
+            schedule: str = DEFAULT_SCHEDULE, interval: int | None = None) -> bool:
+    if interval is not None:
+        schedule = schedule_for(interval)
     (Path(home) / "logs").mkdir(parents=True, exist_ok=True)
     return write_crontab(merge(read_crontab(), home=home, python=python, schedule=schedule))
 

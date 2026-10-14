@@ -82,8 +82,8 @@ Instagram and TikTok fetch media server side and a local path cannot be posted.
 ## Step 5: scheduler
 
 ```
-factory schedule install --runner launchd    # macOS, 15 minute interval
-factory schedule install --runner cron       # Linux
+factory schedule install                     # auto, 15 minute interval: launchd on
+                                             # macOS, schtasks on Windows, cron on Linux
 factory schedule status
 factory schedule tick --dry-run              # decisions only, no publishing
 factory schedule tick                        # a real run

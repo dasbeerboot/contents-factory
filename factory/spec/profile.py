@@ -12,6 +12,7 @@ from ..errors import FactoryError
 
 SLOT = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)Z$")
 LatePolicy = Literal["carry_once", "drop"]
+NaverBackend = Literal["aside", "playwright"]
 PLATFORMS = ("threads", "instagram", "tiktok", "youtube", "naver_blog")
 
 
@@ -20,6 +21,9 @@ class PlatformConfig(BaseModel):
 
     `connector_id` (tiktok) and `blog_id` (naver_blog) are account identifiers, not
     secrets, so P0-SPEC §10 decision 6 keeps them in version controlled profile config.
+
+    `backend` (naver_blog) picks which browser holds the Naver session: `aside` on
+    macOS, `playwright` anywhere. Left unset it follows the configured OS.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -32,6 +36,7 @@ class PlatformConfig(BaseModel):
     daily_cap: int = Field(default=1, ge=0, le=50)
     connector_id: str | None = None
     blog_id: str | None = None
+    backend: NaverBackend | None = None
 
     @field_validator("blog_id")
     @classmethod

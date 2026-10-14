@@ -4,6 +4,12 @@ Route: Higgsfield MCP. media_import_url hands the server a public HTTPS URL (no 
 this machine), then tiktok_prepare_publish opens a session whose _meta carries the
 publish_token, and tiktok_publish submits with that token. Direct TikTok API is not used:
 an unreviewed app can only post privately.
+
+Authentication is the CLI, the publish call is the MCP endpoint. The `higgsfield`
+CLI has no `tiktok` subcommand, so the posting calls stay on the MCP endpoint —
+but the bearer is never a stored key. `higgsfield auth token` is asked for the
+current token immediately before each request, so a long scheduled run cannot go
+out with a token that expired while it waited.
 """
 from __future__ import annotations
 
@@ -11,8 +17,9 @@ import json
 import re
 import urllib.error
 import urllib.request
-from typing import Any, ClassVar
+from typing import Any, Callable, ClassVar
 
+from .. import higgsfield
 from ..credentials import redacted
 from ..errors import FactoryError, scrub
 from ..spec.queue import QueueItem
@@ -26,14 +33,21 @@ IMPORT_MAX_BYTES = 50 * 1024 * 1024
 PHOTO_MAX = 35
 POLL_TRIES = 10
 TOKEN_KEYS = ("tiktok_publish_token", "publish_token", "publish_authorization")
+# The bearer has no credentials.env key to name, so the dry run names its source.
+BEARER_PLACEHOLDER = "<REDACTED:higgsfield auth token>"
 _PUBLISH_ID = re.compile(r'publish_id["\']?\s*[:=]\s*["\']?([A-Za-z0-9._~+/=-]{6,})')
 
 
 class McpClient:
-    """JSON-RPC over HTTP with SSE-framed responses, stdlib only."""
+    """JSON-RPC over HTTP with SSE-framed responses, stdlib only.
 
-    def __init__(self, token: str) -> None:
-        self.token = token
+    `token_source` is called once per request rather than once per client: the CLI
+    rotates the token on its own schedule and a client object can outlive it.
+    """
+
+    def __init__(self, token_source: Callable[[], str] | str) -> None:
+        self._token_source = ((lambda: token_source)
+                              if isinstance(token_source, str) else token_source)
         self._id = 0
         self._ready = False
         self.last_meta: dict[str, Any] = {}
@@ -44,7 +58,7 @@ class McpClient:
         body = json.dumps({"jsonrpc": "2.0", "id": self._id, "method": method,
                            "params": params or {}}, sort_keys=True).encode()
         request = urllib.request.Request(MCP_URL, data=body, headers={
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Bearer {self._token_source()}",
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream"})
         try:
@@ -52,7 +66,10 @@ class McpClient:
                 raw = response.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as error:
             if error.code in (401, 403):
-                raise FactoryError("MCP_TOKEN_EXPIRED", f"HTTP_{error.code}") from None
+                # The token was fetched microseconds ago, so this is the CLI login
+                # itself being gone, not a stale copy of ours.
+                raise FactoryError("HIGGSFIELD_LOGIN_REQUIRED",
+                                   f"HTTP_{error.code}") from None
             raise FactoryError(f"HTTP_{error.code}") from None
         except OSError as error:
             raise FactoryError("NETWORK_UNREACHABLE", type(error).__name__) from None
@@ -112,7 +129,8 @@ def publish_token(raw: str, meta: dict[str, Any], structured: dict[str, Any]) ->
 
 class TikTokPublisher(Publisher):
     platform: ClassVar[str] = "tiktok"
-    required_env: ClassVar[tuple[str, ...]] = ("HIGGSFIELD_MCP_TOKEN",)
+    # No key: the bearer comes from the Higgsfield CLI login, per call.
+    required_env: ClassVar[tuple[str, ...]] = ()
     text_limit: ClassVar[int] = DESC_MAX
 
     def connector(self, item: QueueItem) -> str:
@@ -183,7 +201,7 @@ class TikTokPublisher(Publisher):
         urls = self._urls(item)
         media_type = self._media_type(item)
         arguments = self._prepare_arguments(item, env, urls, redact=True)
-        bearer = redacted("HIGGSFIELD_MCP_TOKEN")
+        bearer = BEARER_PLACEHOLDER
         requests = [PublishRequest(
             "mcp_accounts", "POST", MCP_URL,
             {"method": "tools/call", "name": "tiktok_accounts", "arguments": {},
@@ -221,7 +239,7 @@ class TikTokPublisher(Publisher):
 
     def send(self, item: QueueItem, env: dict[str, str],
              tracker: DeliveryTracker) -> str:
-        client = McpClient(env["HIGGSFIELD_MCP_TOKEN"])
+        client = McpClient(higgsfield.token_provider())
         connector = self.connector(item)
         accounts, raw = client.call("tiktok_accounts", {})
         if connector not in str(accounts or raw):

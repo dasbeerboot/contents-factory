@@ -23,7 +23,6 @@ import difflib
 import hashlib
 import json
 import re
-import shutil
 import subprocess
 import tempfile
 import urllib.error
@@ -35,6 +34,7 @@ from typing import Any, Sequence
 
 from .. import media
 from ..errors import FactoryError
+from ..osinfo import which
 
 API = "https://api.elevenlabs.io/v1/speech-to-text"
 MODEL = "scribe_v1"
@@ -125,10 +125,11 @@ def transcribe_elevenlabs(audio: Path, *, api_key: str,
 
 def transcribe_whisper(audio: Path) -> dict[str, Any]:
     """Offline fallback. Word timings come from whisper's json output."""
-    if shutil.which("whisper") is None:
+    if which("whisper") is None:
         raise FactoryError("STT_ENGINE_MISSING", "whisper")
     with tempfile.TemporaryDirectory() as scratch:
-        done = subprocess.run(["whisper", str(audio), "--model", "base",
+        done = subprocess.run([which("whisper") or "whisper", str(audio),
+                               "--model", "base",
                                "--output_format", "json", "--word_timestamps",
                                "True", "--output_dir", scratch],
                               capture_output=True, text=True, check=False,

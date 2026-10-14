@@ -1,13 +1,15 @@
 ---
 name: setup
 description: >
-  First-run setup: pick interview and content languages, create the runtime home, register a
-  profile, write credentials.env, and connect each platform. Covers the Meta tester-role
-  dance for Threads and Instagram, the Higgsfield connector for TikTok, a BYO GCP project
-  for YouTube, and the logged-in browser session for Naver. Use when the user has just
+  First-run setup on macOS, Windows or Linux: ask the host OS, run the host check, pick
+  interview and content languages, create the runtime home, register a profile, write
+  credentials.env, and connect each platform. Covers the Meta tester-role dance for
+  Threads and Instagram, the Higgsfield CLI login that TikTok publishing rides on, a BYO
+  GCP project for YouTube, and the two Naver browser backends. Use when the user has just
   cloned the repo, is adding a platform, or is hitting auth errors like ENV_MISSING,
-  CONNECTOR_ID_MISSING or NAVER_SESSION_MISSING. 트리거 — "/setup", "셋업", "처음 설정",
-  "키 넣어야 해", "플랫폼 연결", "로그인 안 됨".
+  CONNECTOR_ID_MISSING, HIGGSFIELD_LOGIN_REQUIRED or NAVER_SESSION_MISSING.
+  트리거 — "/setup", "셋업", "처음 설정", "키 넣어야 해", "플랫폼 연결", "로그인 안 됨",
+  "윈도우에서 설치".
 ---
 
 # Setup
@@ -22,6 +24,43 @@ You walk the user through setup. The CLI writes files; you never hand-edit state
   paste one into chat, say it is now burned and must be rotated.
 - `~/.contents-factory/` is written only by `factory` commands. No Write, no Edit.
 - Non-secret account ids go in `platforms.json`, not in `credentials.env`.
+
+## First question, before anything else: which OS?
+
+Ask it literally, and wait for the answer:
+
+> 어떤 운영체제인가요? (macOS / Windows / Linux)
+
+Then record it and check the host, in this order. Both commands before any key talk:
+
+```sh
+uv run factory init --os macos        # or --os windows / --os linux
+uv run factory doctor
+```
+
+- `factory init --os ...` writes `os = "..."` into `factory.toml`. Everything that
+  differs by platform reads it from there: the scheduler (launchd / Task Scheduler /
+  cron), the Naver backend, how `credentials.env` is locked down.
+- Omitting the flag detects the OS and **asks for confirmation** instead of adopting the
+  guess. If the user answered the question, pass the flag.
+- `factory doctor` is the first real step, not a troubleshooting command. It prints the
+  OS (configured next to detected), the python, the runtime home, six external binaries
+  with the install line for this OS, whether the Higgsfield CLI is logged in, the
+  scheduler state and the profiles. Read the `blocking:` line out loud and fix those
+  before going further — every one of them is a command that would otherwise fail hours
+  later.
+
+Windows specifics worth saying up front:
+
+- the runtime home is `%USERPROFILE%\.contents-factory`, not `~/.contents-factory`
+- the scheduler is Task Scheduler (`schtasks`), installed by
+  `factory schedule install` (the default `--runner auto` picks it from `os`)
+- `credentials.env` is locked with `icacls` rather than `chmod 600`; if that call is
+  unavailable the command warns (`FILE_ACL_UNSET`) and still writes the key, so repeat
+  the warning to the user rather than swallowing it
+- Naver needs the Playwright backend, because aside is macOS only (Step 7)
+
+Only the language question comes next, then the BYO accounts.
 
 ## Step 0: every external account is the user's own (BYO)
 
@@ -40,7 +79,7 @@ for by the user. Cloning the repo grants no credits on anything.
 
 | 서비스 / Service | 쓰는 곳 / Used for | 필수 키 / Keys | 위치 / Where |
 |---|---|---|---|
-| Higgsfield | 이미지·영상 생성, TikTok 게시 | (CLI 로그인) + `HIGGSFIELD_MCP_TOKEN` | §0-1 |
+| Higgsfield | 이미지·영상 생성, TikTok 게시 | **키 없음** — `higgsfield auth login` | §0-1 |
 | ElevenLabs | 내레이션 TTS, 전사 STT | `ELEVENLABS_API_KEY` + `voice.json`의 `voice_id` | §0-2 |
 | Anthropic | 글 생성 | `ANTHROPIC_API_KEY` | §0-3 |
 | Supabase | 미디어 공개 URL 호스팅 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | §0-4 |
@@ -52,14 +91,21 @@ for by the user. Cloning the repo grants no credits on anything.
 가입 / Sign up: <https://higgsfield.ai> 에서 본인 계정을 만든다. 크레딧은 구독 플랜에
 포함되거나 별도 구매다. 생성은 전부 본인 잔액에서 나간다.
 
+**붙여넣을 키가 없다.** Higgsfield는 이 셋업에서 유일하게 크레덴셜 파일을 안 쓰는 서비스다 —
+CLI가 OAuth(PKCE) 로그인을 들고 있고 토큰 갱신도 CLI가 한다. 팩토리는 토큰이 필요한
+순간마다 `higgsfield auth token`을 물어서 그 자리에서 쓴다.
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh
+# Windows: 설치는 공식 안내를 따른다 → https://github.com/higgsfield-ai/cli
 higgsfield auth login          # 브라우저가 열린다
 higgsfield account status      # 확인 명령: 이메일 · 플랜 · 잔여 크레딧
 ```
 
 `higgsfield account status`가 이메일과 잔액을 찍으면 끝이다. 값은 읽어 주지 말고 "로그인
-확인됨"만 전한다.
+확인됨"만 전한다. `factory doctor`의 `higgsfield login` 행도 같은 것을 본다 (토큰 값은
+절대 찍지 않는다). 사용자에게 `higgsfield auth token` 출력을 채팅에 붙여넣게 하지 말 것 —
+그건 유효한 액세스 토큰이다.
 
 **크레딧 감각 (2026-10-14 `higgsfield generate cost` 실측)** — 포맷 yaml의
 `credit_cap_per_item`이 이 숫자를 기준으로 잡혀 있다:
@@ -84,19 +130,21 @@ factory gen image --brief b_... --dry-run      # argv만, 호출 없음
 ```
 
 **TikTok 커넥터**: 직접 TikTok API는 미심사 앱이면 비공개 게시만 되므로 Higgsfield MCP를
-경유한다. `tiktok_connect`로 본인 TikTok 계정을 연결하고, `connector_id`는
-`platforms.json`에, MCP 토큰은 `credentials.env`의 `HIGGSFIELD_MCP_TOKEN`에 넣는다.
+경유한다. `tiktok_connect`로 본인 TikTok 계정을 연결하고 `connector_id`는
+`platforms.json`에 넣는다. **크레덴셜은 넣을 게 없다.**
 
-> ⚠️ **현재 MCP 토큰은 정적이고 수 시간 만에 만료된다.** 만료되면 발행이 `HTTP_401`로
-> 멈춘다. 자동 갱신은 아직 없다 — **TODO: `factory token refresh --platform tiktok`**.
-> 그때까지는 발행 전에 토큰을 다시 받아 넣는 수밖에 없다. 장기 예약 발행을 TikTok에
-> 걸어두지 말라고 사용자에게 미리 말할 것.
+**인증은 CLI, 게시 호출만 MCP 엔드포인트다.** CLI에 `tiktok` 서브커맨드가 없어서 게시는
+MCP 엔드포인트를 그대로 쓰지만, bearer는 저장된 키가 아니라 매 요청 직전의
+`higgsfield auth token`이다. 그래서 예약 발행이 몇 시간 대기해도 토큰 만료로 죽지 않고,
+`factory token refresh --platform tiktok` 같은 명령은 없다 (있을 필요가 없다).
+로그아웃 상태면 `HIGGSFIELD_LOGIN_REQUIRED`로 멈추고 큐에 남는다.
 
 흔한 에러 / Common errors:
 
 | 코드 | 뜻 | 대응 |
 |---|---|---|
-| `HIGGSFIELD_CLI_MISSING` | CLI가 `$PATH`에 없음 | 위 설치 명령 |
+| `HIGGSFIELD_CLI_MISSING` | CLI가 `$PATH`에 없음 | 위 설치 명령. Windows는 `.exe`까지 탐색하니 PATH만 맞으면 된다 |
+| `HIGGSFIELD_LOGIN_REQUIRED` | `auth token`이 토큰을 안 줌 (로그아웃·만료) | `higgsfield auth login` |
 | `HIGGSFIELD_FAILED` | CLI가 0이 아닌 코드로 종료 | 상세는 `~/.contents-factory/logs/`의 해당 파일 |
 | `HIGGSFIELD_COST_UNREADABLE` | 견적을 못 읽음 | 모델명·파라미터 확인, `higgsfield model get <model>` |
 | `BUDGET_EXCEEDED` | 포맷 캡 초과 | 캡을 올리든가 길이·해상도를 줄인다. 호출은 안 나갔다 |
@@ -186,15 +234,15 @@ private**로 고정된다 — 검토 후 예약 공개 흐름에는 문제없지
 
 ---
 
-## Step 1: home and language
+## Step 1: language (the OS is already answered)
 
 ```
 uv sync
-factory init
 factory i18n get interview.common.intro
 ```
 
-Ask two things and write them into `factory.toml`:
+The home was created by `factory init --os ...` in the first step. Now ask two things and
+write them into `factory.toml`:
 
 - `ui_lang` (ko/en): the language you ask questions in.
 - `content_lang`: the language the output is written in. Separate on purpose.
@@ -214,8 +262,10 @@ are not runtime state); everything under `queue/`, `briefs/` and `state/` is CLI
 
 ## Step 3: platform keys
 
-Keys go in `~/.contents-factory/profiles/<name>/credentials.env`, one `KEY=value` per line,
-`chmod 600`. The README table is canonical; this is the same list with the setup path.
+Keys go in `<home>/profiles/<name>/credentials.env`, one `KEY=value` per line, owner-only
+(`chmod 600` on macOS and Linux, `icacls` on Windows — the CLI does it). The home is
+`~/.contents-factory`, or `%USERPROFILE%\.contents-factory` on Windows. The README table
+is canonical; this is the same list with the setup path.
 
 Threads is the one platform that writes its own keys: `factory auth threads` runs the
 OAuth flow and records the token for you (step 4). Everything else is hand entered.
@@ -224,9 +274,9 @@ OAuth flow and records the token for you (step 4). Everything else is hand enter
 |---|---|---|
 | Threads | `THREADS_ACCESS_TOKEN`, `THREADS_USER_ID` | `slots`, `daily_cap`, `late_policy` |
 | Instagram | `IG_ACCESS_TOKEN`, `IG_USER_ID` | same |
-| TikTok | `HIGGSFIELD_MCP_TOKEN` | `connector_id` |
+| TikTok | (none — `higgsfield auth login`) | `connector_id` |
 | YouTube | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` | `slots` |
-| Naver blog | (none) | `blog_id` |
+| Naver blog | (none) | `blog_id`, `backend` |
 | Media hosting | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | - |
 | Text generation | `ANTHROPIC_API_KEY` | - |
 
@@ -301,11 +351,19 @@ Confirm by actually connecting a non-tester account before telling the user it w
 Direct TikTok API posting from an unreviewed app can only produce private posts, so the
 route is the Higgsfield MCP connector.
 
-1. Connect the TikTok account in Higgsfield (`tiktok_connect`).
-2. Read the connector id and put it in `platforms.json` under `tiktok.connector_id`.
-3. Put the MCP token in `credentials.env` as `HIGGSFIELD_MCP_TOKEN`.
+1. `higgsfield auth login`, if it has not been run already (Step 0-1). This is the only
+   credential the TikTok route needs.
+2. Connect the TikTok account in Higgsfield (`tiktok_connect`).
+3. Read the connector id and put it in `platforms.json` under `tiktok.connector_id`.
+   Nothing goes into `credentials.env` for TikTok.
 4. `factory publish tiktok --item q_... --dry-run` should show `tiktok_prepare_publish`
-   with your connector id masked to its first four characters.
+   with your connector id masked to its first four characters, and the bearer printed as
+   `<REDACTED:higgsfield auth token>` — that placeholder is the point: the token is
+   fetched per request, not stored.
+
+If a live publish returns `HIGGSFIELD_LOGIN_REQUIRED`, the CLI login is gone, not the
+item: nothing was submitted, so the item goes back to `ready` on its own after
+`higgsfield auth login`.
 
 ## Step 6: YouTube
 
@@ -318,16 +376,56 @@ you pass, which is fine for review-then-schedule but must be said out loud.
 4. `publishAt` only works while `privacyStatus` is private and the timestamp is in the
    future. A past timestamp is dropped rather than turned into an instant public post.
 
-## Step 7: Naver blog
+## Step 7: Naver blog, and which browser holds the session
 
-There is no public write API. Publishing drives the logged-in editor through the `aside`
-browser.
+There is no public write API, so publishing drives a logged-in editor. Two backends can
+hold that login, and `platforms.json` picks one (`naver_blog.backend`). Left unset it
+follows the `os` from Step 0: macOS gets `aside`, everything else gets `playwright`.
+
+| backend | session lives in | OS |
+|---|---|---|
+| `aside` | the aside browser the user is signed into | **macOS 15.0 or later only** |
+| `playwright` | a persistent Chromium profile under `<home>/state/naver-profile/` | macOS, Windows, Linux |
+
+aside is macOS only — its docs say so outright ("Aside supports macOS 15.0 or later"),
+and while the aside *CLI* has a Windows installer, the browser it drives does not exist
+there. So Naver on Windows is not unsupported, it is the other backend.
+
+**aside backend (macOS):**
 
 1. Install `aside` and sign in to Naver in that browser, once.
 2. Put the blog id in `platforms.json` under `naver_blog.blog_id`.
 3. Leave exactly one editor tab open, or none. Two editor tabs is `MULTIPLE_EDITOR_TABS`.
-4. No session means `NAVER_SESSION_MISSING` and the item stays queued. That is not a
-   failure to retry blindly; it is a prompt to log in.
+
+**playwright backend (Windows, Linux, or macOS by choice):**
+
+```powershell
+npm install -g playwright
+npx playwright install chromium       # the browser binary is a separate download
+factory naver login                   # a window opens; the user signs in themselves
+factory naver status                  # boolean, never a cookie value
+```
+
+1. `"backend": "playwright"` in `platforms.json` (or leave it unset on a Windows home).
+2. `factory naver login` opens the Naver login page and waits. **Do not type the
+   credentials for them** and do not ask for the password: they sign in in that window,
+   2FA included, and the session stays in the profile directory.
+3. `PLAYWRIGHT_MISSING` means node found no package anywhere — the loader tries a local
+   resolution and then `npm root -g`, because ESM ignores `NODE_PATH`. For an install in
+   an unusual place, point `FACTORY_PLAYWRIGHT_MODULE` at the package directory or its
+   entry file. `PLAYWRIGHT_LOAD_FAILED` means it is installed but broken.
+   `PLAYWRIGHT_BROWSER_MISSING` means the package is there and Chromium is not:
+   `npx playwright install chromium`.
+4. Verify with `factory publish naver_blog --item q_... --dry-run`; the plan names the
+   backend and the profile directory.
+
+Either way, no session means `NAVER_SESSION_MISSING` and the item stays queued. That is
+not a failure to retry blindly; it is a prompt to log in.
+
+> The playwright publish path has been exercised to dry run and login only. Say that
+> plainly: the first real post should go to a test blog with the user watching. A failure
+> after the publish button is `PUBLISH_OUTCOME_UNCERTAIN:<phase>` and is never retried
+> automatically.
 
 ## Step 8: media hosting
 
@@ -338,12 +436,29 @@ Supabase project, a public bucket, a 7-day cleanup job. Or they fill
 
 ## Step 9: scheduler
 
+`--runner auto` is the default and reads the `os` from Step 0, so this is usually one
+command on every platform:
+
 ```
-factory schedule install --runner launchd     # macOS
-factory schedule install --runner cron        # Linux
+factory schedule install           # auto: launchd / schtasks / cron
 factory schedule status
 factory schedule tick --dry-run
 ```
 
-Finish by reading back, in three lines: which profile, which platforms are connected, and
-what the next seven days look like. Never list key values.
+Forcing one is still possible, and the three are not interchangeable:
+
+```
+factory schedule install --runner launchd     # macOS, a LaunchAgent plist
+factory schedule install --runner schtasks    # Windows Task Scheduler, /SC MINUTE
+factory schedule install --runner cron        # Linux, a fenced crontab block
+```
+
+On Windows the task carries `FACTORY_HOME` inside its action line, because a scheduled
+task has no environment of its own, and it runs `pythonw.exe` so no console window flashes
+every interval. `SCHTASKS_WRITE_FAILED` usually means the shell is not allowed to create
+tasks — rerun it from an elevated PowerShell.
+
+Finish by reading back, in four lines: the OS and runtime home, which profile, which
+platforms are connected, and what the next seven days look like. Never list key values.
+If `factory doctor` still has a `blocking:` line, that is the fifth line and it is the
+next thing to do.

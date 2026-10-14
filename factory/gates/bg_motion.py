@@ -42,6 +42,7 @@ from typing import Any, Iterator
 from . import vision
 from ..errors import FactoryError
 from ..media import FFMPEG, frame_rate
+from ..osinfo import which
 
 ANALYSIS_WIDTH = 360
 BLOCK = 24
@@ -284,7 +285,7 @@ def _raw_frames(source: Path, width: int, height: int) -> Iterator[Any]:
     """Every frame, no resampling, as uint8 RGB. Streamed, never all in memory."""
     numpy = vision.numpy_module()
     process = subprocess.Popen(
-        [FFMPEG, "-v", "error", "-i", str(source), "-vsync", "0",
+        [which(FFMPEG) or FFMPEG, "-v", "error", "-i", str(source), "-vsync", "0",
          "-vf", f"scale={width}:{height}", "-pix_fmt", "rgb24",
          "-f", "rawvideo", "-"], stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL)

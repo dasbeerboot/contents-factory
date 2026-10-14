@@ -32,7 +32,9 @@ P0 필수 규칙:
 - 같은 프로필과 플랫폼의 일일 상한은 platforms 설정의 daily_cap을 따른다.
 - repeat_guard는 발행 직전에 다시 1회 실행한다.
 - 토큰 만료 7일 전 terminal 또는 telegram 경고가 있어야 한다.
-- 네이버 발행은 로그인된 aside 세션이 필요하다. 미로그인은 NAVER_SESSION_MISSING으로 큐를 유지한다.
+- 네이버 발행은 로그인된 브라우저 세션이 필요하다 — macOS는 aside, Windows·Linux는
+  playwright 영속 프로필(`factory naver login`). 미로그인은 NAVER_SESSION_MISSING으로
+  큐를 유지한다.
 
 ## 게이트(PASS·FAIL 기준)
 

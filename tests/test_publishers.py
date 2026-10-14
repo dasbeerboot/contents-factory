@@ -18,14 +18,15 @@ from tests.conftest import make_item
 
 THREADS_ENV = {"THREADS_ACCESS_TOKEN": "secret-threads", "THREADS_USER_ID": "17890001"}
 IG_ENV = {"IG_ACCESS_TOKEN": "secret-ig", "IG_USER_ID": "17890002"}
-TIKTOK_ENV = {"HIGGSFIELD_MCP_TOKEN": "secret-mcp"}
+# No key: the TikTok bearer is fetched from `higgsfield auth token` per request.
+TIKTOK_ENV: dict[str, str] = {}
 YT_ENV = {"YOUTUBE_CLIENT_ID": "cid", "YOUTUBE_CLIENT_SECRET": "csec",
           "YOUTUBE_REFRESH_TOKEN": "rtok"}
 NAVER_ENV: dict[str, str] = {}
 # Account ids are not secrets: they come from platforms.json (P0-SPEC §10 decision 6).
 TIKTOK_SETTINGS = PlatformConfig(enabled=True, connector_id="connector-1")
 NAVER_SETTINGS = PlatformConfig(enabled=True, blog_id="examplelog")
-SECRETS = ("secret-threads", "secret-ig", "secret-mcp", "csec", "rtok")
+SECRETS = ("secret-threads", "secret-ig", "csec", "rtok")
 
 
 def rendered(result) -> str:
@@ -45,7 +46,7 @@ def test_registry_covers_five_platforms() -> None:
 
 def test_required_env_is_declared() -> None:
     assert required_env("threads") == ("THREADS_ACCESS_TOKEN", "THREADS_USER_ID")
-    assert required_env("tiktok") == ("HIGGSFIELD_MCP_TOKEN",)
+    assert required_env("tiktok") == ()
     assert required_env("naver_blog") == ()
     with pytest.raises(FactoryError):
         required_env("mastodon")
@@ -161,6 +162,10 @@ def test_tiktok_dry_run_shape(isolated_home: Path) -> None:
     assert prepare["connector_id"] == "conn***"
     assert result.requests[3].fields["arguments"]["publish_token"] == (
         "<REDACTED:TIKTOK_PUBLISH_TOKEN>")
+    # The bearer names its source rather than a credentials.env key, because there
+    # is no key to paste any more.
+    assert result.requests[0].fields["authorization"] == (
+        "<REDACTED:higgsfield auth token>")
     assert_no_secrets(result)
 
 

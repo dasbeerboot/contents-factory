@@ -5,9 +5,15 @@
 // script injection, ownership marking, document injection, component validation and the
 // reservation panel flow (category, tags, reserve, publish, logNo recovery).
 //
-// usage: node publish.mjs --job <job.json> [--dry-run]
+// Two backends drive the same editor: `aside` (macOS, the aside browser holds the
+// session) and `playwright` (every OS, a persistent Chromium profile under the runtime
+// home holds it). The main-world scripts below are shared; only the step runner and the
+// publish panel differ, so the SmartEditor contract has one implementation.
+//
+// usage: node publish.mjs --job <job.json> [--dry-run] [--backend aside|playwright]
+//        [--user-data-dir <path>]
 // job.json: { blogId, title, category, tags[], publishAt: "YYYY-MM-DDTHH:MM" (KST),
-//             markdown | markdownPath, dryRun? }
+//             markdown | markdownPath, dryRun?, backend?, userDataDir? }
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -27,9 +33,11 @@ const MAX_PROGRAM_BYTES = 90 * 1024;
 // fetched by the editor tab, so post length is bounded by the browser, not by the REPL.
 const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024;
 const FACTORY_HOME = process.env.FACTORY_HOME
-  ? path.resolve(process.env.FACTORY_HOME.replace(/^~(?=$|\/)/, homedir()))
+  ? path.resolve(process.env.FACTORY_HOME.replace(/^~(?=$|[/\\])/, homedir()))
   : path.join(homedir(), ".contents-factory");
 const BUILD_ROOT = path.join(FACTORY_HOME, "state", "naver", "build");
+const DEFAULT_USER_DATA_DIR = path.join(FACTORY_HOME, "state", "naver-profile");
+export const BACKENDS = ["aside", "playwright"];
 
 let runContext = null;
 
@@ -47,21 +55,25 @@ function errorCode(error, fallback = "UNEXPECTED") {
 }
 
 export function parseArgs(argv) {
-  const options = { job: "", dry: false };
+  const options = { job: "", dry: false, backend: "", userDataDir: "" };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--dry-run" || argument === "--dry") {
       options.dry = true;
-    } else if (argument === "--job") {
+    } else if (argument === "--job" || argument === "--backend"
+               || argument === "--user-data-dir") {
       const value = argv[index + 1];
       if (!value || value.startsWith("--")) fail("JOB_VALUE_REQUIRED");
-      options.job = value;
+      if (argument === "--job") options.job = value;
+      if (argument === "--backend") options.backend = value;
+      if (argument === "--user-data-dir") options.userDataDir = value;
       index += 1;
     } else {
       fail("UNKNOWN_OPTION");
     }
   }
   if (!options.job) fail("JOB_VALUE_REQUIRED");
+  if (options.backend && !BACKENDS.includes(options.backend)) fail("NAVER_BACKEND_UNKNOWN");
   return options;
 }
 
@@ -253,7 +265,9 @@ async function runAsideStep(body) {
   return envelope.result;
 }
 
-async function ensureEditor() {
+// The main-world scripts are backend independent: both backends inject the same
+// source into the editor frame and read the result attribute back.
+export function readyMainCode() {
   const readyCode = mainWorldCode(String.raw`
     let editorReady = false;
     for (let attempt = 0; attempt < 150; attempt += 1) {
@@ -283,6 +297,11 @@ async function ensureEditor() {
     throw new Error(editorReady ? "EDITOR_NOT_EMPTY" : "EDITOR_API_TIMEOUT");
   `).replaceAll("OWNER_KEY_TOKEN", JSON.stringify(OWNER_KEY))
     .replaceAll("RUN_TOKEN_VALUE", JSON.stringify(runContext.token));
+  return readyCode;
+}
+
+async function ensureEditorAside() {
+  const readyCode = readyMainCode();
   return runAsideStep(`
     const { page, frame } = await __editorContext(true, true);
     for (const context of [page, ...page.frames()]) {
@@ -298,7 +317,7 @@ async function ensureEditor() {
   `);
 }
 
-async function injectDocument(bundleUrl) {
+export function injectMainCode(bundleUrl) {
   const code = mainWorldCode(String.raw`
     const response = await fetch(BUNDLE_URL, { cache: "no-store" });
     if (!response.ok) throw new Error("BUILD_FETCH_FAILED");
@@ -320,14 +339,19 @@ async function injectDocument(bundleUrl) {
   `).replace("BUNDLE_URL", JSON.stringify(bundleUrl))
     .replaceAll("OWNER_KEY_TOKEN", JSON.stringify(OWNER_KEY))
     .replaceAll("RUN_TOKEN_VALUE", JSON.stringify(runContext.token));
+  return code;
+}
+
+async function injectDocumentAside(bundleUrl) {
+  const code = injectMainCode(bundleUrl);
   return runAsideStep(`
     const { frame } = await __editorContext(false);
     return await __runMain(frame, ${JSON.stringify(code)});
   `);
 }
 
-async function validateEditor(expectedCounts) {
-  const code = mainWorldCode(String.raw`
+export function validateMainCode() {
+  return mainWorldCode(String.raw`
     const editor = window.SmartEditor?._editors?.blogpc001;
     if (!editor?.getDocumentData) throw new Error("EDITOR_API_MISSING");
     const documentModel = editor.getDocumentData();
@@ -338,6 +362,10 @@ async function validateEditor(expectedCounts) {
     }
     return { counts };
   `);
+}
+
+async function validateEditorAside(expectedCounts) {
+  const code = validateMainCode();
   return runAsideStep(`
     const { frame } = await __editorContext(false);
     const model = await __runMain(frame, ${JSON.stringify(code)});
@@ -480,6 +508,15 @@ export function publishPanelProgram({ category, tags, publishAt, title = "" }) {
   `;
 }
 
+export function resolveBackend(options, job = {}, platform = process.platform) {
+  const chosen = String(options?.backend || job?.backend || "").trim();
+  // The factory always passes one. A bare node invocation falls back to what the
+  // host can actually run: aside exists on macOS only.
+  if (!chosen) return platform === "darwin" ? "aside" : "playwright";
+  if (!BACKENDS.includes(chosen)) fail("NAVER_BACKEND_UNKNOWN");
+  return chosen;
+}
+
 async function loadMarkdown(job) {
   if (typeof job.markdown === "string" && job.markdown.trim()) return job.markdown;
   if (typeof job.markdownPath === "string" && job.markdownPath.trim()) {
@@ -517,12 +554,19 @@ export async function main(argv) {
     return { ok: false, code: "DOCUMENT_TOO_LARGE" };
   }
 
+  const backend = resolveBackend(options, job);
+  const userDataDir = options.userDataDir || job.userDataDir || DEFAULT_USER_DATA_DIR;
+
   if (options.dry || job.dryRun) {
     return {
       ok: true,
       code: "DRY_RUN",
       dry_run: true,
       plan: {
+        backend,
+        session: backend === "aside"
+          ? "aside browser, logged in once"
+          : `playwright persistent context: ${userDataDir}`,
         editor_url: editorUrl(spec.blogId),
         title: spec.title,
         category: spec.category,
@@ -543,26 +587,53 @@ export async function main(argv) {
   const bundleName = `${runContext.token}.json`;
   const bundlePath = path.join(BUILD_ROOT, bundleName);
   let cors = null;
+  let driver = null;
   try {
     await mkdir(BUILD_ROOT, { recursive: true });
     await writeFile(bundlePath, bundleBody, { encoding: "utf8", mode: 0o600 });
     cors = await startCorsServer({ buildRoot: BUILD_ROOT });
-    await ensureEditor();
-    await injectDocument(`${cors.origin}/build/${bundleName}`);
-    await validateEditor(counts);
-    const result = await runAsideStep(publishPanelProgram({
-      category: spec.category,
-      tags: spec.tags,
-      publishAt: spec.publishAt,
-      title: spec.title,
-    }));
-    return { ok: true, code: "OK", log_no: result.logNo, reserved: result.reservedStamp };
+    const bundleUrl = `${cors.origin}/build/${bundleName}`;
+    let result;
+    if (backend === "playwright") {
+      const { createPlaywrightDriver } = await import("./driver_playwright.mjs");
+      driver = await createPlaywrightDriver({
+        blogId: spec.blogId,
+        userDataDir,
+        editorUrl: editorUrl(spec.blogId),
+      });
+      await driver.ensureEditor(readyMainCode());
+      await driver.injectDocument(injectMainCode(bundleUrl));
+      await driver.validateEditor(validateMainCode(), counts);
+      result = await driver.publishPanel({
+        category: spec.category,
+        tags: spec.tags,
+        publishAt: spec.publishAt,
+        title: spec.title,
+      });
+    } else {
+      await ensureEditorAside();
+      await injectDocumentAside(bundleUrl);
+      await validateEditorAside(counts);
+      result = await runAsideStep(publishPanelProgram({
+        category: spec.category,
+        tags: spec.tags,
+        publishAt: spec.publishAt,
+        title: spec.title,
+      }));
+    }
+    return { ok: true, code: "OK", log_no: result.logNo, reserved: result.reservedStamp,
+             backend };
   } catch (error) {
     const code = errorCode(error, "PUBLISH_FAILED");
+    // "the session is not there" is a prompt to log in, not a retry loop. Both
+    // backends funnel their session failures into one code.
     const sessionCodes = ["HOST_TAB_MISSING", "EDITOR_TAB_MISSING", "EDITOR_FRAME_TIMEOUT",
-                          "ASIDE_UNAVAILABLE", "ASIDE_RESULT_MISSING", "ASIDE_TIMEOUT"];
-    return { ok: false, code: sessionCodes.includes(code) ? "NAVER_SESSION_MISSING" : code };
+                          "ASIDE_UNAVAILABLE", "ASIDE_RESULT_MISSING", "ASIDE_TIMEOUT",
+                          "NAVER_SESSION_MISSING"];
+    return { ok: false, code: sessionCodes.includes(code) ? "NAVER_SESSION_MISSING" : code,
+             backend };
   } finally {
+    if (driver) await driver.close().catch(() => {});
     if (cors) await cors.close().catch(() => {});
     await rm(bundlePath, { force: true }).catch(() => {});
   }

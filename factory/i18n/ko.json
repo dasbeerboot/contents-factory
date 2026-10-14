@@ -63,5 +63,13 @@
   "auth.warning": "경고: {detail}",
   "auth.saved": "{platform} 연결 완료: @{username} (프로필 {profile}, 교환 경로 {route}). 기록한 키: {keys}. 값은 어디에도 출력하지 않는다.",
   "auth.instagram.manual": "instagram 교환은 아직 자동이 아니다. 남은 단계는 사람이 한다:",
-  "media.hosted": "{item_id} 미디어 {index} 호스팅 완료. public_url={url}"
+  "media.hosted": "{item_id} 미디어 {index} 호스팅 완료. public_url={url}",
+  "naver.login.header": "네이버 로그인 창을 연다. 창에서 직접 로그인해라 (2차인증 포함). 세션은 {directory}에 남는다. 아이디·비밀번호는 입력해 주지 않고 쿠키 값도 읽지 않는다.",
+  "naver.login.ok": "네이버 세션 확인됨. 저장 위치 {directory}.",
+  "naver.login.missing": "네이버 세션 없음 ({code}). factory naver login 으로 로그인해라. 세션 없으면 발행은 NAVER_SESSION_MISSING 으로 큐에 남는다.",
+  "os.question": "어떤 운영체제인가요? (macOS / Windows / Linux)",
+  "os.detected": "{detected} 로 감지했다. 맞나? 맞으면 factory init --os {detected}.",
+  "doctor.blocking": "먼저 해결할 것: {items}",
+  "doctor.clear": "호스트 의존성 전부 통과.",
+  "naver.playwright.missing": "Playwright가 없다 ({code}). `npm install -g playwright` 후 `npx playwright install chromium`. 전역 설치를 node가 못 찾으면 FACTORY_PLAYWRIGHT_MODULE 로 모듈 경로를 지정해라."
 }

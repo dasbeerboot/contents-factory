@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from .errors import FactoryError
+from .osinfo import secure_file
 
 LINE = re.compile(r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*(.*)$")
 CREDENTIALS_FILENAME = "credentials.env"
@@ -48,8 +49,13 @@ def require(env: dict[str, str], keys: tuple[str, ...]) -> None:
         raise FactoryError("ENV_MISSING", ",".join(sorted(missing)))
 
 
-def env_set(path: Path, key: str, value: str) -> None:
-    """Replace or append KEY=value, keeping the file at mode 600."""
+def env_set(path: Path, key: str, value: str) -> str:
+    """Replace or append KEY=value, keeping the file owner-only.
+
+    Returns "" or a warning code: on Windows the lockdown is an `icacls` call
+    that can fail, and losing a freshly minted token because an ACL call was
+    unavailable is worse than writing it to a per-user directory and saying so.
+    """
     if not re.match(r"^[A-Z][A-Z0-9_]*$", key):
         raise FactoryError("ENV_KEY_INVALID", key[:32])
     try:
@@ -66,7 +72,7 @@ def env_set(path: Path, key: str, value: str) -> None:
         text += line + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    path.chmod(0o600)
+    return secure_file(path)
 
 
 REDACTED = "<REDACTED:%s>"

@@ -1,3 +1,6 @@
+# `factory init --os macos|windows|linux` writes the os key above; omitting the flag
+# records what this machine looks like and asks you to confirm. The scheduler, the Naver
+# backend and the credentials file permissions all read it.
 ui_lang = "ko"
 content_lang = "en"
 default_profile = "_example"

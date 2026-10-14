@@ -6,15 +6,91 @@
 Interview-driven content generation plus scheduled publishing to five platforms. The persona
 lives in a profile directory, not in the code. Plan: `docs/PLAN.md`, P0 spec: `docs/P0-SPEC.md`.
 
+## 지원 OS / Supported platforms
+
+| | macOS | Windows | Linux |
+|---|---|---|---|
+| 글·이미지·영상 생성 | ✅ | ✅ | ✅ |
+| Threads·Instagram·TikTok·YouTube 발행 | ✅ | ✅ | ✅ |
+| 네이버 블로그 | ✅ aside | ✅ playwright | ✅ playwright |
+| 스케줄러 | launchd | Task Scheduler (`schtasks`) | cron |
+| 런타임 홈 | `~/.contents-factory` | `%USERPROFILE%\.contents-factory` | `~/.contents-factory` |
+
+OS는 설치 때 한 번 고르고 `factory.toml`의 `os`에 기록된다 (`factory init --os macos|windows|linux`).
+생략하면 감지하고 **확인 질문**을 띄운다 — 감지값을 조용히 채택하지 않는다.
+호스트 상태는 `factory doctor` 한 방으로 본다.
+
+The OS is answered once and recorded in `factory.toml` as `os`. Omitting the flag
+detects and asks for confirmation rather than adopting a guess. `factory doctor` prints
+the whole host picture in one table.
+
 ## 설치 / Install
 
+### macOS
+
 ```sh
+brew install ffmpeg node                     # 영상 단계 + 네이버 퍼블리셔
+curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh
+higgsfield auth login                        # 브라우저 OAuth, 토큰은 CLI가 보관·갱신
 uv sync
-uv run factory init        # creates ~/.contents-factory and copies factory.toml
+uv run factory init --os macos
+uv run factory doctor                        # 결측 바이너리·로그인 상태 확인
 uv run pytest
 ```
 
-Python 3.11+. `node` is required for the Naver publisher, `aside` for its browser session.
+네이버를 쓸 거면 [aside](https://aside.com/download)(**macOS 15.0 이상**)를 깔고 네이버에
+1회 로그인한다. aside를 안 쓰면 playwright 백엔드를 macOS에서도 쓸 수 있다 (아래 네이버 절).
+
+### Windows (PowerShell)
+
+```powershell
+winget install --id Gyan.FFmpeg             # ffmpeg + ffprobe
+winget install --id OpenJS.NodeJS.LTS       # node, 네이버 퍼블리셔용
+irm https://astral.sh/uv/install.ps1 | iex  # uv
+# higgsfield CLI: 설치 명령은 공식 안내를 따른다 → https://github.com/higgsfield-ai/cli
+higgsfield auth login                       # 브라우저 OAuth
+uv sync
+uv run factory init --os windows
+uv run factory doctor
+uv run pytest
+```
+
+네이버 블로그를 쓸 거면 Playwright Chromium이 추가로 필요하다 (aside는 macOS 전용):
+
+```powershell
+npm install -g playwright
+npx playwright install chromium
+uv run factory naver login                  # 창이 열리면 직접 로그인한다
+uv run factory naver status
+```
+
+전역 설치도 찾는다 — ESM 동적 임포트는 `NODE_PATH`를 무시하므로 로더가 로컬 해석 →
+`npm root -g` 순서로 뒤진다. 특이한 위치에 깔았으면 `FACTORY_PLAYWRIGHT_MODULE`에 패키지
+디렉토리나 엔트리 파일 경로를 준다. 못 찾으면 `PLAYWRIGHT_MISSING`, 깔렸는데 초기화가
+깨지면 `PLAYWRIGHT_LOAD_FAILED`, Chromium 바이너리가 없으면
+`PLAYWRIGHT_BROWSER_MISSING`(= `npx playwright install chromium`) 이다.
+
+### Linux
+
+macOS 절과 같고, ffmpeg·node는 배포판 패키지로 깔고 `factory init --os linux`,
+스케줄러는 `--runner cron`, 네이버는 playwright 백엔드다.
+
+Python 3.11+. `node` is required for the Naver publisher; `aside` is macOS-only and
+Windows/Linux use the Playwright backend instead. `factory doctor` names anything missing
+with the install line for the current OS.
+
+### 외부 바이너리 / External binaries
+
+| 바이너리 | 쓰는 곳 | 없으면 |
+|---|---|---|
+| `ffmpeg`·`ffprobe` | 영상 조립·자막·프레임 게이트 | `FFMPEG_MISSING` |
+| `node` | 네이버 퍼블리셔 | `NODE_MISSING` |
+| `uv` | 이 프로젝트 실행 | - |
+| `higgsfield` | 이미지·영상 생성, TikTok 인증 | `HIGGSFIELD_CLI_MISSING` |
+| `aside` | 네이버 aside 백엔드 (macOS 전용) | `NAVER_SESSION_MISSING` |
+
+탐색은 전부 `shutil.which` + `.exe`·`.cmd` 접미 허용이라 Windows에서 `ffmpeg.exe` 도 잡힌다.
 
 ## 🚨 상태파일은 CLI로만 / State is CLI-only
 
@@ -28,7 +104,8 @@ the json is how the scheduler dies.
 ## 명령 / Commands
 
 ```
-factory init
+factory init [--os macos|windows|linux]
+factory doctor [--json]                  # OS·파이썬·바이너리 6종·CLI 로그인·스케줄러
 factory profile add <name> [--from _example] | list | show [name]
 factory brief new --kind text --format threads_post [--profile X] [--answers file|-]
                   [--force]   # id 는 b_<UTC초>_<4자>, 기존 id 덮으려면 --force
@@ -51,11 +128,14 @@ factory queue reopen --item q_... --reason "..."   # unknown phase 해제 (사�
 factory media host --item q_... [--index 0] [--dry-run]  # 로컬 미디어 → 공개 URL,
                                                        # media[].public_url 기록
 factory publish <platform> --item q_... [--dry-run]
-factory schedule install|remove|status [--runner launchd|cron] | tick [--dry-run]
+factory schedule install|remove|status [--runner auto|launchd|cron|schtasks]
+                 | tick [--dry-run]           # auto = factory.toml 의 os 가 정한다
+factory naver login [--wait-ms N] | status    # 네이버 playwright 세션 (직접 로그인)
 factory auth threads   --profile X [--app-id ID] [--redirect URI] [--exchange-url URL]
                        [--url-only] [--no-open]     # OAuth, writes THREADS_* keys
 factory auth instagram --profile X [--app-id ID] [--redirect URI]  # consent URL only (P1)
 factory token refresh [--profile X] [--platform threads|instagram] [--dry-run]
+                      # Higgsfield 는 여기 없다 — CLI 가 자기 토큰을 갱신한다
 factory ledger summary [--days 30]
 factory i18n get <key> [--lang ko|en] | keys | missing --lang ko
 factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
@@ -82,8 +162,9 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
   `text`를 본문, `published_at`을 시각으로 쓴다. 캐시 시그니처에 이 파일들의 mtime·size가
   들어가서 외부 코퍼스가 자라면 인덱스가 바로 무효화된다.
 - 토큰 만료 7일 전부터 tick이 경고를 띄운다.
-- 네이버는 로그인된 aside 브라우저 세션이 필요하다. 없으면 `NAVER_SESSION_MISSING`으로
-  큐에 그대로 남는다.
+- 네이버는 로그인된 브라우저 세션이 필요하다 (macOS는 aside, 그 외는 playwright 영속
+  프로필). 없으면 `NAVER_SESSION_MISSING`으로 큐에 그대로 남는다 — 재시도할 실패가 아니고
+  로그인하라는 신호다.
 
 ### 중복발행 방어 (delivery phase)
 
@@ -175,7 +256,7 @@ through each one.
 
 | 서비스 | 필요한 이유 | 없으면 | 키 이름 |
 |---|---|---|---|
-| [Higgsfield](https://higgsfield.ai) | 이미지·영상 생성, TikTok 게시 | 이미지·영상 전부 불가 | CLI 로그인 + `HIGGSFIELD_MCP_TOKEN` |
+| [Higgsfield](https://higgsfield.ai) | 이미지·영상 생성, TikTok 게시 | 이미지·영상 전부 불가 | **키 없음 — `higgsfield auth login`** |
 | [ElevenLabs](https://elevenlabs.io) | 내레이션 TTS, 발화 전사 | `tts` 단계·`stt_wpm` 게이트 불가 | `ELEVENLABS_API_KEY` |
 | [Anthropic](https://console.anthropic.com) | 글 생성 | `gen text` 불가 | `ANTHROPIC_API_KEY` |
 | [Supabase](https://supabase.com) | 미디어 공개 URL | 이미지·영상 발행 불가 (텍스트는 가능) | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
@@ -187,11 +268,26 @@ through each one.
 
 ### Higgsfield 로그인 / Higgsfield login
 
+**붙여넣을 키가 없다.** Higgsfield 인증은 전부 CLI가 들고 있다 — `auth login`이 브라우저
+OAuth(PKCE)를 돌리고, 토큰은 CLI 자기 크레덴셜 파일에 들어가고 갱신도 CLI가 한다.
+팩토리는 토큰이 필요한 순간마다 `higgsfield auth token`을 물어서 그 자리에서 쓴다
+(값은 로그·에러·`--dry-run` 어디에도 안 찍힌다).
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh
-higgsfield auth login
+higgsfield auth login          # 브라우저가 열린다
 higgsfield account status      # 이메일 · 플랜 · 잔여 크레딧
+higgsfield auth token          # 팩토리가 호출 직전에 쓰는 그 명령 (값은 보지 말 것)
 ```
+
+| 코드 | 뜻 | 대응 |
+|---|---|---|
+| `HIGGSFIELD_CLI_MISSING` | CLI가 `$PATH`에 없음 | 위 설치 명령 (Windows는 `.exe`도 탐색한다) |
+| `HIGGSFIELD_LOGIN_REQUIRED` | `auth token`이 토큰을 안 줌 | `higgsfield auth login` |
+
+There is no key to paste. `higgsfield auth login` runs the browser OAuth flow and the CLI
+owns the token, including its refresh; the factory asks `higgsfield auth token` for the
+current one immediately before each call that needs it.
 
 크레딧 실측 (2026-10-14 `higgsfield generate cost`). 포맷 yaml의 `credit_cap_per_item`이
 이 숫자 기준이다:
@@ -211,12 +307,18 @@ higgsfield account status      # 이메일 · 플랜 · 잔여 크레딧
 ### TikTok 커넥터 / TikTok connector
 
 직접 TikTok API는 미심사 앱이면 비공개 게시만 되므로 Higgsfield MCP를 경유한다.
-`tiktok_connect`로 본인 계정을 연결하고 `connector_id`는 `platforms.json`에,
-토큰은 `credentials.env`의 `HIGGSFIELD_MCP_TOKEN`에 넣는다.
+`tiktok_connect`로 본인 계정을 연결하고 `connector_id`는 `platforms.json`에 넣는다.
+**크레덴셜은 넣을 게 없다.**
 
-> ⚠️ **MCP 토큰은 현재 정적이고 수 시간 만에 만료된다.** 만료되면 발행이 `HTTP_401`로
-> 멈춘다. 자동 갱신은 **아직 없다 (TODO: `factory token refresh --platform tiktok`)**.
-> 그때까지 TikTok에 장기 예약 발행을 걸어두면 토큰이 먼저 죽는다.
+**인증은 CLI, 게시 호출만 MCP 엔드포인트다.** `higgsfield` CLI에는 `tiktok` 서브커맨드가
+없어서(2026-10-15 `higgsfield --help` 실측) 게시는 `https://mcp.higgsfield.ai/mcp`의
+`tiktok_prepare_publish`·`tiktok_publish`를 그대로 쓴다. 다만 bearer는 저장된 키가 아니라
+**매 요청 직전 `higgsfield auth token`** 이다 — 예약 발행이 몇 시간 대기해도 그때 받은
+토큰으로 나가므로 "기다리는 동안 토큰이 죽는" 경로가 없다. 그래서
+`factory token refresh --platform tiktok` 같은 명령은 없고, 필요한 것도 없다.
+
+만료가 아니라 **로그아웃**이면 `HIGGSFIELD_LOGIN_REQUIRED`로 멈추고 큐에 남는다
+(아무것도 제출되지 않았음이 증명되므로 재시도 안전 코드다).
 
 ### ElevenLabs voice_id
 
@@ -252,9 +354,9 @@ Voice Design(글로 묘사해서 생성)이나 Instant Voice Cloning(본인 음�
 |---|---|---|
 | Threads | `THREADS_ACCESS_TOKEN`, `THREADS_USER_ID` | `THREADS_TOKEN_ISSUED_AT`(auth·refresh가 기록), `THREADS_APP_ID`, `THREADS_APP_SECRET`(있으면 로컬 교환), `THREADS_REDIRECT_URI` |
 | Instagram | `IG_ACCESS_TOKEN`, `IG_USER_ID` | `IG_TOKEN_ISSUED_AT`, `IG_APP_ID`, `IG_APP_SECRET` |
-| TikTok (Higgsfield MCP) | `HIGGSFIELD_MCP_TOKEN` | - |
+| TikTok (Higgsfield MCP) | (없음 — `higgsfield auth login`) | - |
 | YouTube | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` | `YOUTUBE_ACCESS_TOKEN`(단기 폴백) |
-| 네이버 블로그 | (토큰 없음) | `FACTORY_ASIDE_BIN`(기본 `aside`) |
+| 네이버 블로그 | (토큰 없음) | `FACTORY_ASIDE_BIN`(기본 `aside`, aside 백엔드만), `FACTORY_PLAYWRIGHT_MODULE` |
 | 미디어 호스팅 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | `SUPABASE_BUCKET`(기본 `contents-factory`) |
 | 텍스트 생성 | `ANTHROPIC_API_KEY` | - |
 
@@ -273,7 +375,48 @@ Threads 토큰은 `factory auth threads --profile X`가 직접 넣는다 — 동
   직접 가져가므로 로컬 경로 업로드가 안 된다. `media_host`(Supabase) 또는 BYO로 채운다.
 - TikTok 직접 API는 미심사 앱이면 비공개 게시만 된다. 그래서 Higgsfield MCP 경로를 쓴다.
 - YouTube: 미검증 GCP 앱 업로드는 private 고정. `publishAt`은 private + 미래 시각일 때만 먹는다.
-- 네이버: 공개 글쓰기 API가 없다. aside 브라우저로 에디터를 조작한다.
+- 네이버: 공개 글쓰기 API가 없다. 로그인된 브라우저로 에디터를 조작한다 — macOS는 aside,
+  Windows·Linux는 Playwright 영속 프로필(아래 "네이버 백엔드").
+
+## 네이버 백엔드 / Naver backends
+
+네이버는 공개 글쓰기 API가 없어서 **로그인된 브라우저**가 세션을 들고 있어야 한다.
+그 브라우저가 둘이다. `platforms.json`의 `naver_blog.backend`로 고르고, 비워두면
+`factory.toml`의 `os`가 정한다 (macos → `aside`, 그 외 → `playwright`).
+
+| 백엔드 | 세션 보관 | OS | 로그인 |
+|---|---|---|---|
+| `aside` | aside 브라우저 (사용자가 이미 로그인된 창) | **macOS 15.0+ 전용** | aside에서 네이버 1회 로그인 |
+| `playwright` | `~/.contents-factory/state/naver-profile/` 영속 프로필 | macOS·Windows·Linux | `factory naver login` |
+
+aside는 macOS 전용이다 — 공식 문서가 "Aside supports macOS 15.0 or later"라고 못 박는다
+(CLI 자체는 Windows 설치본이 있지만, CLI가 조작하는 **브라우저**가 macOS에만 있다).
+그래서 Windows에서 네이버를 "미지원"으로 끝내지 않고 playwright 백엔드를 쓴다.
+
+```jsonc
+// platforms.json
+"naver_blog": { "enabled": true, "blog_id": "yourblog", "backend": "playwright",
+                "slots": ["12:00Z"] }
+```
+
+```sh
+npm install -g playwright && npx playwright install chromium
+factory naver login           # 창이 열린다. 아이디·비번·2차인증은 사용자가 직접 입력한다
+factory naver status          # 세션 살아있나 (쿠키 값은 읽지 않고 불린만)
+factory publish naver_blog --item q_... --dry-run
+```
+
+로그인은 **대신 쳐주지 않는다.** 창만 열고 네이버 세션 쿠키가 생기는지 폴링하다가
+생기면 "확인됨"을 찍는다. 쿠키 값도 비밀번호도 어디에도 기록하지 않는다.
+
+에디터 조작 코드(SmartEditor 문서 주입·컴포넌트 검증)는 두 백엔드가 **같은 소스**를 쓴다.
+다른 것은 실행 래퍼와 발행 패널뿐이다 — aside는 접근성 트리 ref로, playwright는 role
+로케이터로 같은 버튼을 집는다.
+
+> ⚠️ **playwright 백엔드의 실발행 경로는 아직 실측되지 않았다.** `--dry-run`과
+> `factory naver login`까지만 검증했다 (실게시 금지 조건으로 작업했다). 첫 실발행은
+> 테스트 블로그에서 사람이 지켜보며 돌릴 것. 발행 버튼을 누른 뒤 실패하면
+> `PUBLISH_OUTCOME_UNCERTAIN:<phase>`로 멈추고 자동 재시도하지 않는다.
 
 ## 미디어 호스팅 버킷 / BYO media bucket
 
@@ -359,7 +502,11 @@ factory/
   queue/{store,cli}.py        큐 CRUD 단일 소유자
   scheduler/{tick,launchd,cron,token_refresh}.py
   publishers/{base,threads,instagram,tiktok,youtube,naver_blog,media_host}.py
-  publishers/naver/*.mjs      pilot에서 벤더링한 aside 에디터 조작
+  publishers/naver/*.mjs      벤더링한 에디터 조작 (publish·document·md·cors)
+  publishers/naver/driver_playwright.mjs  playwright 영속 프로필 백엔드 + 로그인 창
+  publishers/naver/login.mjs  factory naver login|status 엔트리
+  osinfo.py higgsfield.py doctor.py       OS 분기 · CLI 인증 · 호스트 점검
+  scheduler/windows.py        Windows Task Scheduler (schtasks)
   review/terminal.py
 profiles/_example/            영문 예시 페르소나 (사주 아님)
 .claude/skills/{setup,profile,writing-factory,image-factory,video-factory,publish}/SKILL.md

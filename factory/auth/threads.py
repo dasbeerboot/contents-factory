@@ -208,7 +208,11 @@ def connect(home: Path, profile: str, *, pasted: str, app_id: str | None = None,
     path.parent.mkdir(parents=True, exist_ok=True)
     env_set(path, TOKEN_KEY, token)
     env_set(path, USER_ID_KEY, user_id)
-    env_set(path, ISSUED_AT_KEY, issued_at)
+    permission = env_set(path, ISSUED_AT_KEY, issued_at)
+    if permission:
+        # The token is saved; the file just could not be locked down. Say so
+        # rather than swallow it: on Windows this is an icacls failure.
+        warnings.append(permission)
     return AuthResult(platform="threads", profile=profile, username=username,
                       user_id=user_id, issued_at=issued_at, route=route, scopes=scopes,
                       written_keys=(TOKEN_KEY, USER_ID_KEY, ISSUED_AT_KEY),

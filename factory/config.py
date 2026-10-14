@@ -1,4 +1,10 @@
-"""factory.toml loader. Runtime home is ~/.contents-factory unless overridden."""
+"""factory.toml loader. Runtime home is ~/.contents-factory unless overridden.
+
+`os` is stored rather than detected on every run: the scheduler, the credentials
+file permissions and the Naver backend all branch on it, and a machine that was
+set up once should keep behaving the same way. `factory init --os` writes it;
+`factory doctor` shows the stored value next to the detected one.
+"""
 from __future__ import annotations
 
 import os
@@ -10,6 +16,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .errors import FactoryError
+from .osinfo import OS_CHOICES, OsName, detect_os, expand
 
 CONFIG_FILENAME = "factory.toml"
 DEFAULT_HOME = "~/.contents-factory"
@@ -24,6 +31,10 @@ class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ui_lang: UiLang = "ko"
+    # The host OS this home was set up on. Absent means "whatever this machine
+    # looks like today", which is right for a fresh clone and wrong for a home
+    # that was configured once, so `factory init` writes the answer down.
+    os: OsName = Field(default_factory=detect_os)
     content_lang: str = "en"
     default_profile: str = "_example"
     home: str = DEFAULT_HOME
@@ -68,7 +79,7 @@ class Config(BaseModel):
     def home_path(self) -> Path:
         override = os.environ.get(HOME_ENV, "").strip()
         base = override or self.home
-        return Path(base).expanduser()
+        return expand(base)
 
     def state_dir(self, *parts: str) -> Path:
         return self.home_path.joinpath(*parts)
@@ -90,10 +101,35 @@ class Config(BaseModel):
         found: list[Path] = []
         for key in ("*", profile):
             for entry in self.extra_corpus.get(key, ()):
-                path = Path(str(entry)).expanduser()
+                path = expand(str(entry))
                 if path not in found:
                     found.append(path)
         return tuple(found)
+
+
+def os_line(os_name: str) -> str:
+    if os_name not in OS_CHOICES:
+        raise FactoryError("OS_UNKNOWN", str(os_name)[:32])
+    return f'os = "{os_name}"'
+
+
+def write_os(path: Path, os_name: str) -> str:
+    """Record the chosen OS in a factory.toml, replacing any existing line."""
+    line = os_line(os_name)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    pattern = re.compile(r"^\s*os\s*=.*$", re.M)
+    if pattern.search(text):
+        text = pattern.sub(line, text)
+    else:
+        if text and not text.endswith("\n"):
+            text += "\n"
+        text = f"{line}\n{text}" if text else f"{line}\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return os_name
 
 
 def repo_root() -> Path:
@@ -103,14 +139,14 @@ def repo_root() -> Path:
 def find_config_file(start: Path | None = None) -> Path | None:
     explicit = os.environ.get(CONFIG_ENV, "").strip()
     if explicit:
-        candidate = Path(explicit).expanduser()
+        candidate = expand(explicit)
         return candidate if candidate.is_file() else None
     seen: list[Path] = []
     cursor = (start or Path.cwd()).resolve()
     for parent in [cursor, *cursor.parents]:
         seen.append(parent / CONFIG_FILENAME)
     home_override = os.environ.get(HOME_ENV, "").strip()
-    seen.append(Path(home_override or DEFAULT_HOME).expanduser() / CONFIG_FILENAME)
+    seen.append(expand(home_override or DEFAULT_HOME) / CONFIG_FILENAME)
     seen.append(repo_root() / CONFIG_FILENAME)
     for path in seen:
         if path.is_file():
@@ -132,7 +168,8 @@ def load_config(path: Path | None = None) -> Config:
         raise FactoryError("CONFIG_INVALID", target.name) from None
 
 
-def init_home(config: Config, template: Path | None = None) -> Path:
+def init_home(config: Config, template: Path | None = None, *,
+              os_name: str | None = None) -> Path:
     home = config.home_path
     for sub in ("queue", "briefs", "profiles", "state", "logs", "outputs"):
         (home / sub).mkdir(parents=True, exist_ok=True)
@@ -141,6 +178,11 @@ def init_home(config: Config, template: Path | None = None) -> Path:
         source = template or (repo_root() / "factory.toml.example")
         body = source.read_text(encoding="utf-8") if source.is_file() else ""
         target.write_text(body, encoding="utf-8")
+    if os_name:
+        # The config that this run loaded may live elsewhere (repo root, or
+        # FACTORY_CONFIG); write the answer to both so the next run agrees.
+        for path in {target, find_config_file()} - {None}:
+            write_os(path, os_name)  # type: ignore[arg-type]
     return home
 
 

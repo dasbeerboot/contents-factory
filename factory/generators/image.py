@@ -5,13 +5,13 @@ the exact invocation can be reviewed before any credits are spent. Model choice 
 P0-SPEC §1: nano_banana_pro for reference and character work, gpt_image_2 for design and
 text, text2image_soul_v2 when the profile carries a Soul id.
 
-The CLI owns Higgsfield auth, so no credential is read, built or printed here.
+The CLI owns Higgsfield auth (`higgsfield auth login`), so no credential is read,
+built or printed here. A missing CLI is HIGGSFIELD_CLI_MISSING.
 """
 from __future__ import annotations
 
 import json
 import re
-import shutil
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from ..errors import FactoryError, scrub
-
-BINARY = "higgsfield"
+from ..higgsfield import BINARY
+from ..osinfo import which
 MODEL_DESIGN = "gpt_image_2"
 MODEL_REFERENCE = "nano_banana_pro"
 MODEL_SOUL = "text2image_soul_v2"
@@ -152,7 +152,7 @@ def plan(job: ImageJob, *, wait: str = DEFAULT_WAIT) -> dict[str, Any]:
     """Dry run payload: the exact argv, plus what it would cost and produce."""
     command = build_command(job, wait=wait)
     return {"binary": BINARY,
-            "available": shutil.which(BINARY) is not None,
+            "available": which(BINARY) is not None,
             "model": job.model,
             "count": job.count,
             "credit_cap_per_item": job.credit_cap,
@@ -188,7 +188,7 @@ def generate(job: ImageJob, *, wait: str = DEFAULT_WAIT,
              timeout: int = DEFAULT_TIMEOUT_SECONDS,
              runner: Any = None) -> list[dict[str, Any]]:
     """Run the CLI once per requested image and return the parsed job objects."""
-    if shutil.which(BINARY) is None and runner is None:
+    if which(BINARY) is None and runner is None:
         raise FactoryError("HIGGSFIELD_CLI_MISSING")
     command = build_command(job, wait=wait)
     invoke = runner or _subprocess_runner
@@ -199,8 +199,11 @@ def generate(job: ImageJob, *, wait: str = DEFAULT_WAIT,
 
 
 def _subprocess_runner(command: Sequence[str], timeout: int) -> dict[str, Any]:
+    # The plan prints the bare binary name; execution uses the resolved path, so a
+    # Windows `higgsfield.cmd` shim runs without going through a shell.
+    argv = [which(command[0]) or command[0], *list(command)[1:]]
     try:
-        completed = subprocess.run(list(command), capture_output=True, text=True,
+        completed = subprocess.run(argv, capture_output=True, text=True,
                                    timeout=timeout, check=False)
     except FileNotFoundError:
         raise FactoryError("HIGGSFIELD_CLI_MISSING") from None

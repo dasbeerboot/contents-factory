@@ -63,5 +63,13 @@
   "auth.warning": "warning: {detail}",
   "auth.saved": "{platform} connected: @{username} (profile {profile}, exchange route {route}). Keys written: {keys}. No value is ever printed.",
   "auth.instagram.manual": "The instagram exchange is not automated yet. These steps are still manual:",
-  "media.hosted": "{item_id} media {index} hosted. public_url={url}"
+  "media.hosted": "{item_id} media {index} hosted. public_url={url}",
+  "naver.login.header": "Opening the Naver login window. Sign in yourself, including any 2FA. The session stays in {directory}. Nothing is typed for you and no cookie value is read.",
+  "naver.login.ok": "Naver session confirmed, stored in {directory}.",
+  "naver.login.missing": "No Naver session ({code}). Run factory naver login. Without it publishing stays queued as NAVER_SESSION_MISSING.",
+  "os.question": "Which operating system is this? (macOS / Windows / Linux)",
+  "os.detected": "Detected {detected}. Confirm with factory init --os {detected}.",
+  "doctor.blocking": "fix first: {items}",
+  "doctor.clear": "every host dependency passed.",
+  "naver.playwright.missing": "Playwright is not available ({code}). Run `npm install -g playwright` then `npx playwright install chromium`. If node cannot resolve a global install, point FACTORY_PLAYWRIGHT_MODULE at the module."
 }

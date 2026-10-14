@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
 
-from . import i18n, ledger, rules
+from . import doctor as doctor_module
+from . import i18n, ledger, osinfo, rules
 from .auth import instagram as instagram_auth
 from .auth import threads as threads_auth
 from .config import Config, init_home, load_config, repo_root
@@ -24,12 +25,12 @@ from .generators import budget, fetch
 from .generators import image as image_generator
 from .generators import text as text_generator
 from .generators import video as video_generator
-from .publishers import media_host, publisher_for, required_env
+from .publishers import media_host, naver_blog, publisher_for, required_env
 from .queue import cli as queue_cli
 from .publishers.base import DeliveryTracker, failure_mode
 from .queue.store import QueueStore, StoreTracker
 from .review import terminal
-from .scheduler import cron, launchd, tick, token_refresh
+from .scheduler import cron, launchd, tick, token_refresh, windows
 from .spec.brief import (Brief, Output, load_brief, new_brief_id, parse_brief,
                          save_brief, utc_now)
 from .spec.format import FormatSpec, catalogue, load_format
@@ -46,7 +47,15 @@ def build_parser() -> argparse.ArgumentParser:
                                      description="content factory: generate, gate, queue, publish")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    commands.add_parser("init", help="create the runtime home and copy factory.toml")
+    init_parser = commands.add_parser(
+        "init", help="create the runtime home and copy factory.toml")
+    init_parser.add_argument("--os", dest="os_name", choices=list(osinfo.OS_CHOICES),
+                             help="host OS; detected when omitted")
+
+    doctor_parser = commands.add_parser(
+        "doctor", help="OS, python, external binaries, CLI login, scheduler")
+    doctor_parser.add_argument("--json", dest="as_json", action="store_true",
+                               help="machine readable report")
 
     profile = commands.add_parser("profile", help="profile add/list/show")
     profile_actions = profile.add_subparsers(dest="profile_command", required=True)
@@ -112,13 +121,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     schedule = commands.add_parser("schedule", help="schedule install/remove/status/tick")
     schedule_actions = schedule.add_subparsers(dest="schedule_command", required=True)
+    runners = ["auto", "launchd", "cron", "schtasks"]
     schedule_install = schedule_actions.add_parser("install")
-    schedule_install.add_argument("--runner", choices=["launchd", "cron"], default="launchd")
+    schedule_install.add_argument("--runner", choices=runners, default="auto",
+                                  help="auto follows the configured os")
     schedule_install.add_argument("--interval", type=int, default=900)
     schedule_remove = schedule_actions.add_parser("remove")
-    schedule_remove.add_argument("--runner", choices=["launchd", "cron"], default="launchd")
+    schedule_remove.add_argument("--runner", choices=runners, default="auto")
     schedule_status = schedule_actions.add_parser("status")
-    schedule_status.add_argument("--runner", choices=["launchd", "cron"], default="launchd")
+    schedule_status.add_argument("--runner", choices=runners, default="auto")
     schedule_status.add_argument("--days", type=int, default=7)
     schedule_tick = schedule_actions.add_parser("tick")
     schedule_tick.add_argument("--dry-run", action="store_true")
@@ -132,6 +143,14 @@ def build_parser() -> argparse.ArgumentParser:
                                    help="which media entry, default the first")
     media_host_parser.add_argument("--dry-run", action="store_true",
                                    help="print the request plan without uploading")
+
+    naver = commands.add_parser("naver", help="naver blog session (playwright backend)")
+    naver_actions = naver.add_subparsers(dest="naver_command", required=True)
+    naver_login = naver_actions.add_parser(
+        "login", help="open a window and wait for you to sign in to Naver")
+    naver_login.add_argument("--wait-ms", dest="wait_ms", type=int, default=0,
+                             help="how long to wait for the sign in, default 10 minutes")
+    naver_actions.add_parser("status", help="is the stored Naver session still there")
 
     auth = commands.add_parser("auth", help="connect a platform account by OAuth")
     auth_actions = auth.add_subparsers(dest="auth_command", required=True)
@@ -202,6 +221,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 def dispatch(config: Config, args: argparse.Namespace) -> int:
     handlers = {
         "init": _init,
+        "doctor": _doctor,
+        "naver": _naver,
         "profile": _profile,
         "brief": _brief,
         "gen": _gen,
@@ -228,13 +249,69 @@ def _profile_of(config: Config, name: str | None) -> Profile:
 
 
 def _init(config: Config, args: argparse.Namespace) -> int:
-    home = init_home(config)
+    """Create the home. `--os` is recorded; omitted means detect and say so.
+
+    The detected value is printed rather than silently adopted: the setup skill asks
+    the OS question first and this is where the answer lands, so a wrong guess has to
+    be visible to be corrected.
+    """
+    chosen = getattr(args, "os_name", None)
+    detected = osinfo.detect_os()
+    stored = "os" in config.model_fields_set
+    effective = chosen or config.os
+    home = init_home(config, os_name=effective)
     translate = i18n.Translator(config.ui_lang)
     print(f"home: {home}")
+    if chosen:
+        note = ""
+    elif stored:
+        # A stored answer is kept, but a machine that disagrees with it is worth
+        # saying out loud rather than discovering through a broken scheduler.
+        note = ("" if effective == detected
+                else f" (from factory.toml; this machine looks like {detected})")
+    else:
+        note = f" (detected, confirm with factory init --os {detected})"
+    print(f"os={effective}{note}")
+    print(f"home convention on {effective}: {osinfo.home_display(effective)}  "
+          f"scheduler: {osinfo.scheduler_for(effective)}")
     print(f"ui_lang={config.ui_lang} content_lang={config.content_lang} "
           f"default_profile={config.default_profile} review={config.review}")
     print(translate("error.state_handwrite"))
     return EXIT_OK
+
+
+def _doctor(config: Config, args: argparse.Namespace) -> int:
+    """Host readiness in one table. No paid call, no secret read."""
+    data = doctor_module.report(config)
+    if getattr(args, "as_json", False):
+        print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        print(doctor_module.render(data))
+    return EXIT_ERROR if doctor_module.blockers(data) else EXIT_OK
+
+
+def _naver(config: Config, args: argparse.Namespace) -> int:
+    """Naver session for the playwright backend. The user signs in themselves."""
+    home = config.home_path
+    if args.naver_command == "status":
+        result = naver_blog.login(home, status=True)
+    elif args.naver_command == "login":
+        print(i18n.get("naver.login.header", config.ui_lang,
+                       directory=str(naver_blog.user_data_dir(home))))
+        result = naver_blog.login(home, wait_ms=getattr(args, "wait_ms", 0))
+    else:
+        raise FactoryError("NAVER_COMMAND_UNKNOWN", str(args.naver_command)[:32])
+    logged_in = bool(result.get("logged_in"))
+    code = str(result.get("code") or "")
+    if not logged_in and code.startswith("PLAYWRIGHT_"):
+        # The dependency is missing, so "log in" is not the next step.
+        print(i18n.get("naver.playwright.missing", config.ui_lang, code=code))
+        return EXIT_ERROR
+    print(i18n.get("naver.login.ok" if logged_in else "naver.login.missing",
+                   config.ui_lang,
+                   directory=str(naver_blog.user_data_dir(home)),
+                   code=code))
+    return EXIT_OK if logged_in else EXIT_ERROR
 
 
 def _profile(config: Config, args: argparse.Namespace) -> int:
@@ -276,7 +353,9 @@ def _profile(config: Config, args: argparse.Namespace) -> int:
         credentials = target / "credentials.env"
         credentials.write_text("# add the keys listed in the README, one KEY=value per line\n",
                                encoding="utf-8")
-        credentials.chmod(0o600)
+        permission = osinfo.secure_file(credentials)
+        if permission:
+            print(permission, file=sys.stderr)
         print(str(target))
         return EXIT_OK
     raise FactoryError("PROFILE_COMMAND_UNKNOWN")
@@ -787,25 +866,48 @@ def _auth(config: Config, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _runner(config: Config, args: argparse.Namespace) -> str:
+    """`auto` means the scheduler this OS actually has."""
+    chosen = getattr(args, "runner", "auto") or "auto"
+    return osinfo.scheduler_for(config.os) if chosen == "auto" else chosen
+
+
 def _schedule(config: Config, args: argparse.Namespace) -> int:
     home = config.home_path
+    runner = _runner(config, args)
     if args.schedule_command == "install":
-        if args.runner == "launchd":
+        if runner == "launchd":
             path = launchd.install(home=home, interval=args.interval)
             print(f"installed {path}")
+        elif runner == "schtasks":
+            ok = windows.install(home=home, interval=args.interval)
+            print(f"installed task {windows.TASK_NAME}" if ok else "SCHTASKS_WRITE_FAILED")
+            if not ok:
+                return EXIT_ERROR
         else:
-            ok = cron.install(home=home)
+            ok = cron.install(home=home, interval=args.interval)
             print("installed crontab block" if ok else "CRONTAB_WRITE_FAILED")
             if not ok:
                 return EXIT_ERROR
         return EXIT_OK
     if args.schedule_command == "remove":
-        removed = launchd.remove() if args.runner == "launchd" else cron.remove()
+        if runner == "launchd":
+            removed = launchd.remove()
+        elif runner == "schtasks":
+            removed = windows.remove()
+        else:
+            removed = cron.remove()
         print("removed" if removed else "nothing to remove")
         return EXIT_OK
     if args.schedule_command == "status":
-        state = launchd.status() if args.runner == "launchd" else cron.status()
-        print(json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True))
+        if runner == "launchd":
+            state: dict[str, object] = launchd.status()
+        elif runner == "schtasks":
+            state = windows.status()
+        else:
+            state = cron.status()
+        print(json.dumps({"runner": runner, **state}, ensure_ascii=False, indent=2,
+                         sort_keys=True))
         print(i18n.get("schedule.next_seven_days", config.ui_lang))
         now = datetime.now(timezone.utc)
         for item in QueueStore(home).upcoming(now=now, days=args.days):

@@ -74,8 +74,11 @@ def status(label: str = LABEL) -> dict[str, object]:
 
 
 def _uid() -> int:
+    """launchd is macOS only; a forced `--runner launchd` elsewhere must not crash."""
     import os
-    return os.getuid()
+
+    getuid = getattr(os, "getuid", None)
+    return getuid() if getuid is not None else -1
 
 
 def _launchctl(arguments: list[str], *,
