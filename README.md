@@ -33,9 +33,12 @@ factory profile add <name> [--from _example] | list | show [name]
 factory brief new --kind text --format threads_post [--profile X] [--answers file|-]
 factory brief show --brief b_...
 factory gen text  --brief b_... [--dry-run]
-factory gen image --brief b_... [--dry-run]   # higgsfield CLI argv 조립, --dry-run은 호출 없음
+factory gen image --brief b_... [--dry-run]   # 실제 higgsfield 호출, --dry-run은 argv만
+factory gen video --brief b_... [--stage script|still|clip|tts|captions|assemble|all]
+                  [--dry-run] [--force]       # 단계별 실행, 산출물 있으면 건너뜀
 factory gate run (--brief b_... | --text "...") [--format threads_post] [--gate repeat_guard]
                  [--box x,y,width,height[,label]]      # caption_safe_zone 입력
+                 [--media path]                        # 영상 게이트 대상 (기본: brief 산출물)
                  [--item q_...]                        # duplicate_copy 자기 제외
 factory queue add --platform threads [--brief b_... --output 0] [--text "..."]
                   [--media path --public-url url] [--slot next|2026-10-15T12:00:00Z]
@@ -84,6 +87,49 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
   `factory queue reopen --item q_... --reason "<확인 내용>"`.
   `container_id`나 `published_id`가 남아 있으면 거부한다(`DELIVERY_MAY_BE_PUBLISHED`).
 - `phase=published`인데 `published` 플래그가 없으면 tick이 플래그만 복구한다(재발행 안 함).
+
+## 영상 파이프라인 / Video pipeline
+
+```sh
+uv sync --extra video      # numpy + pillow. 없으면 GATE_DEPS_MISSING
+factory gen video --brief b_... --dry-run      # 단계별 비용 견적까지
+factory gen video --brief b_... --stage still  # 한 단계만
+factory gen video --brief b_...                # 전부
+```
+
+단계는 `script → still → clip → tts → captions → assemble`. 명령이 단계마다 끊기므로
+중간 산출물은 `~/.contents-factory/outputs/<brief_id>/`에 쌓이고 `stages.json`이 뭐가
+있는지 기록한다. 산출물이 이미 있으면 그 단계는 건너뛴다 — 재렌더는 `--force`로만, 원장에
+별도 과금으로 남는다.
+
+- **편당 캡.** 유료 호출마다 프로바이더에 견적을 묻고 `credit_cap_per_item`(포맷 yaml)에서
+  원장이 이미 기록한 금액을 뺀 잔액과 대조한다. 넘으면 `BUDGET_EXCEEDED`로 **호출 전에**
+  멈춘다. 취소된 작업도 과금되기 때문이다.
+- **재롤 없음.** 실패한 테이크는 폐기하고 예비안을 넣는다 (`docs/rules/video-rules.md` §8–9).
+- **골든 프롬프트.** `script` 단계가 포맷 템플릿의 슬롯만 바뀌었는지 검사한다. 슬롯 밖
+  문장이 다르면 `SCRIPT_GATE_FAILED`로 렌더하지 않는다.
+- **멀티테이크.** 클립 모델 상한(15s)보다 긴 영상은 연속 테이크로 나누고, 뒤 테이크의 시작
+  이미지는 **앞 테이크의 마지막 프레임**이다. 같은 스틸로 두 번 뽑으면 접합부에서 배경이
+  처음으로 되돌아간다.
+- **해상도는 예산 레버.** 24초를 1080p로 뽑으면 288크레딧, 720p + 조립 시 업스케일이면
+  108크레딧이다. `limits.clip_resolution`.
+- **자막 시계.** 자막 타이밍은 실제로 재생되는 오디오를 따른다 (`limits.caption_source`).
+  테이크가 자기 음성을 갖고 있으면 그 테이크를 전사해서 맞춘다.
+
+페르소나 고유값(voice id, Soul id, 레퍼런스 이미지, 엔드카드 문구)은 전부 프로필에서 온다.
+엔드카드 같은 고정 문구는 `brand.md`의 `- End card: ...` 줄이 슬롯 값이 된다.
+
+### 영상 게이트 / Video gates
+
+| 게이트 | 잡는 것 |
+|---|---|
+| `stt_wpm` | 실발화 wpm, 승인 대본 대비 충실도, 필러·중복어. 전사는 **현재 테이크**에서 새로 뜬다 (오디오 해시로 캐시 무효화) |
+| `limb_motion` | 테이크 내내 안 움직이는 팔. 몸통 기준 상대 벡터의 표준편차로 판정, 팔이 프레임 밖이면 PASS |
+| `bg_motion` | `FROZEN_BG`(배경이 안 흐름) · `MORPH_BG`(흐르지만 모양이 변형) · `FRAME_JUMP`(한 프레임 순간이동) |
+| `identity` | 레퍼런스 대비 얼굴 길이/폭 비. 비율만으로 끝내지 않고 몽타주를 같이 내놓는다 |
+
+`factory gate run --brief b_...`는 brief의 렌더 결과를 자동으로 찾고, `caption_safe_zone`에
+렌더러가 실제로 그린 박스를 넘긴다 — 손으로 좌표를 치지 않는다.
 
 ## 프로필 / Profile
 
@@ -210,6 +256,11 @@ tests/
 | 팩토리 | 원본 |
 |---|---|
 | `gates/repeat_guard.py` | `~/.saju-threads/scripts/repeat_guard.py` |
+| `gates/{vision,limb_motion,bg_motion}.py` | `~/.saju-threads/reelv1/gates/{limb_motion,bg_motion}.py` |
+| `gates/identity.py` | `reelv1` eyemetric + saju-threads `docs/video-briefs/STILL-GATE.md` §B-7 |
+| `gates/stt_wpm.py` | `reelv1/stt.py`, `viewer_voice.py` |
+| `generators/video/script.py` | `docs/video-briefs/prompts-2026-09-15/gen.py --check` |
+| `generators/video/{tts,captions,assemble}.py` | `reelv1/{tts,captions,textrender_safe,assemble}.py` |
 | `publishers/threads.py` | `publish.sh`, `threads_delivery.py` |
 | `publishers/instagram.py` | `ig_publish.sh`, `ig_preview.sh` |
 | `publishers/tiktok.py` | `tiktok_publish.py` |

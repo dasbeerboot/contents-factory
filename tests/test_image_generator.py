@@ -51,9 +51,13 @@ def test_validation_rules(tmp_path: Path) -> None:
     with pytest.raises(FactoryError) as empty:
         image.build_command(job(prompt="  "))
     assert empty.value.code == "PROMPT_REQUIRED"
+    # A ratio the shape rule cannot read is rejected here. Whether a readable
+    # ratio is one the model takes is decided by snap_aspect against that
+    # model's own enum, not by a list in this module.
     with pytest.raises(FactoryError) as aspect:
-        image.build_command(job(aspect_ratio="7:3"))
+        image.build_command(job(aspect_ratio="widescreen"))
     assert aspect.value.code == "ASPECT_UNSUPPORTED"
+    assert image.build_command(job(aspect_ratio="21:9"))
     with pytest.raises(FactoryError) as missing:
         image.build_command(job(references=("/nope/ref.png",)))
     assert missing.value.code == "REFERENCE_MISSING"

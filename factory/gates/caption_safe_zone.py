@@ -48,6 +48,9 @@ class Zone:
     y_min: int = SAFE_Y[0]
     y_max: int = SAFE_Y[1]
     max_text_width: int = MAX_TEXT_WIDTH
+    # True when the numbers are already in the format's own frame rather than in
+    # the 1080x1920 reference. A margin-derived zone is; the measured band is not.
+    native: bool = False
 
     def scaled(self, frame: tuple[int, int]) -> "Zone":
         """Scale the zone to a frame other than 1080x1920, keeping proportions."""
@@ -80,14 +83,36 @@ class SafeZoneReport:
 
 
 def zone_from_limits(limits: dict[str, Any] | None) -> Zone:
-    """Read safe_zone_px / center_safe_zone_px out of a format yaml limits block."""
+    """The safe box this format declares.
+
+    Two spellings, because two kinds of format need different things. Vertical
+    video states an explicit `safe_zone_px` band, because the unsafe area is not
+    symmetric: platform UI eats the bottom much harder than the top. Still
+    cards state a uniform `safe_margin_px` inset instead, since nothing overlays
+    them and the only requirement is that text keeps clear of the edges.
+
+    Falling back to the vertical-video band for a landscape card would fail
+    every headline that is doing its job, so the inset is read first when the
+    format gives one.
+    """
+    rules = limits or {}
     for key in ("safe_zone_px", "center_safe_zone_px"):
-        raw = (limits or {}).get(key)
+        raw = rules.get(key)
         if isinstance(raw, dict) and {"x_min", "x_max", "y_min", "y_max"} <= set(raw):
-            width = int((limits or {}).get("max_text_width_px") or MAX_TEXT_WIDTH)
+            width = int(rules.get("max_text_width_px") or MAX_TEXT_WIDTH)
             return Zone(x_min=int(raw["x_min"]), x_max=int(raw["x_max"]),
                         y_min=int(raw["y_min"]), y_max=int(raw["y_max"]),
                         max_text_width=width)
+    margin = rules.get("safe_margin_px")
+    frame_width, frame_height = rules.get("width_px"), rules.get("height_px")
+    if (isinstance(margin, int) and margin > 0 and isinstance(frame_width, int)
+            and isinstance(frame_height, int) and frame_width > 2 * margin
+            and frame_height > 2 * margin):
+        return Zone(x_min=margin, x_max=frame_width - margin, y_min=margin,
+                    y_max=frame_height - margin,
+                    max_text_width=int(rules.get("max_text_width_px")
+                                       or frame_width - 2 * margin),
+                    native=True)
     return Zone()
 
 
@@ -147,8 +172,8 @@ def check(boxes: Sequence[Any], *, limits: dict[str, Any] | None = None,
     """Judge every text box. An empty box list is a FAIL: nothing to verify is not a pass."""
     resolved_frame = frame or frame_from_limits(limits)
     base = zone or zone_from_limits(limits)
-    scaled = base if resolved_frame == (FRAME_WIDTH, FRAME_HEIGHT) else base.scaled(
-        resolved_frame)
+    scaled = (base if base.native or resolved_frame == (FRAME_WIDTH, FRAME_HEIGHT)
+              else base.scaled(resolved_frame))
     try:
         parsed = parse_boxes(boxes)
     except ValueError as error:

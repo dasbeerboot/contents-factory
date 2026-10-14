@@ -22,6 +22,23 @@ questions:
   - key: video.th.endcard
     question_ko: "마지막 엔드카드 문구는 무엇인가요?"
     question_en: "What should the final end card say?"
+# Positive description carries the weight. A noun inside a negative clause still
+# names a thing for the model to picture, so listing the parts of a social app
+# interface is how one gets drawn: the first version of this template forbade
+# status bars and buttons and came back as a full screenshot. The negative line
+# stays short and names only defects, never scenery.
+still_prompt_template: |
+  A photograph shot on a mirrorless camera with a 35mm lens, printed edge to edge.
+  Subject: {{host_identity}}, mid-stride on an empty pavement, looking straight into the lens.
+  Location: {{location}}
+  Outfit: {{outfit}}
+  Visual identity: {{identity}}
+  Framing: chest-up to head, face square to the camera, face filling roughly 35 to 40 percent of frame height, placed slightly off-center.
+  Face shape: short compact round face, wide open eyes, natural skin texture, visible pores.
+  Arms: relaxed and swinging low beside the body, both elbows soft and bent.
+  Background: the street behind her is quiet and deserted, with a pole, railing or kerb close to the camera on one side.
+  Lighting: available daylight, consistent with the location.
+  Negative: text, watermark, extra limbs, deformed hands, blurry, beauty filter, airbrushed skin, 3D render, illustration.
 prompt_template: |
   The START IMAGE is the exact first frame and face reference for {{host_identity}}.
   Keep the face, outfit, opening composition, camera height, subject placement, background, and lighting from the start image.
@@ -48,6 +65,15 @@ limits:
   height_px: 1920
   wpm: [150, 185]
   first3s_events_min: 3
+  # The take is rendered at 720p and upscaled on assembly. This is a budget
+  # decision, not a quality preference: 24s at 1080p costs 288 credits against a
+  # 150 cap, the same take at 720p costs 108.
+  clip_resolution: 720p
+  # The clip model speaks the dialogue itself, so the deliverable keeps the
+  # take's own audio and the captions are timed by transcribing it.
+  audio_source: clip
+  caption_source: stt
+  tts_chars_max: 2000
   platform_max_duration_s: {tiktok: 180, youtube: 180, instagram: 900}
   platform_recommended_aspect: {tiktok: "9:16", youtube: "9:16", instagram: "9:16"}
   min_resolution_px: {tiktok: [540, 960], youtube: [1080, 1920], instagram: [1080, 1920]}

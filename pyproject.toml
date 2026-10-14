@@ -9,12 +9,23 @@ dependencies = [
     "pydantic>=2.6",
 ]
 
+[project.optional-dependencies]
+# Caption rendering and the frame-analysis gates. Not needed for text or for
+# publishing, so they stay out of the base install; without them the video
+# stages and gates raise GATE_DEPS_MISSING rather than guessing.
+video = [
+    "numpy>=1.26",
+    "pillow>=10.0",
+]
+
 [project.scripts]
 factory = "factory.cli:main"
 
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "numpy>=1.26",
+    "pillow>=10.0",
 ]
 
 [build-system]
