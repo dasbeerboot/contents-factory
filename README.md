@@ -32,8 +32,10 @@ factory init
 factory profile add <name> [--from _example] | list | show [name]
 factory brief new --kind text --format threads_post [--profile X] [--answers file|-]
 factory brief show --brief b_...
-factory gen text --brief b_... [--dry-run]
+factory gen text  --brief b_... [--dry-run]
+factory gen image --brief b_... [--dry-run]   # higgsfield CLI argv 조립, --dry-run은 호출 없음
 factory gate run (--brief b_... | --text "...") [--format threads_post] [--gate repeat_guard]
+                 [--box x,y,width,height[,label]]      # caption_safe_zone 입력
 factory queue add --platform threads [--brief b_... --output 0] [--text "..."]
                   [--media path --public-url url] [--slot next|2026-10-15T12:00:00Z]
 factory queue list [--pending] [--json] | approve | unapprove | arm --reason "..." | disarm | purge
@@ -189,6 +191,8 @@ factory/
   formats/{text,image,video}/*.yaml
   generators/text.py          Anthropic claude-sonnet-5 + 캐싱
   gates/{repeat_guard,forbidden_words,limits,caption_safe_zone}.py
+  generators/image.py         higgsfield CLI 래퍼 (argv 조립 + dry-run)
+  rules.py                    docs/rules 절 단위 리더 (캐싱 프리픽스용)
   queue/{store,cli}.py        큐 CRUD 단일 소유자
   scheduler/{tick,launchd,cron,token_refresh}.py
   publishers/{base,threads,instagram,tiktok,youtube,naver_blog,media_host}.py

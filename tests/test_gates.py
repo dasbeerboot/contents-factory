@@ -183,9 +183,48 @@ def test_forbidden_blocks_labels() -> None:
     assert report.hits == ["reply1:완치"]
 
 
-def test_caption_safe_zone_stub() -> None:
-    inside = caption_safe_zone.Box(x=220, y=300, width=600, height=200)
-    assert caption_safe_zone.check(inside) == []
-    outside = caption_safe_zone.Box(x=100, y=100, width=900, height=1800)
-    codes = {violation.split(":")[0] for violation in caption_safe_zone.check(outside)}
+def test_caption_safe_zone_passes_inside_the_zone() -> None:
+    inside = caption_safe_zone.Box(x=220, y=300, width=600, height=200, label="line1")
+    report = caption_safe_zone.check([inside])
+    assert report.ok is True
+    assert report.boxes == 1
+    assert report.zone["x_min"] == 200 and report.zone["y_max"] == 1430
+
+
+def test_caption_safe_zone_reports_every_edge() -> None:
+    report = caption_safe_zone.check([(100, 100, 900, 1800)])
+    codes = {entry.split(":")[1] for entry in report.violations}
     assert codes == {"LEFT_OUT", "RIGHT_OUT", "TOP_OUT", "BOTTOM_OUT", "WIDTH_OVER"}
+    assert report.ok is False
+    assert all(entry.startswith("box1:") for entry in report.violations)
+
+
+def test_caption_safe_zone_accepts_dicts_and_labels() -> None:
+    report = caption_safe_zone.check([
+        {"x": 220, "y": 300, "width": 600, "height": 100, "label": "hook"},
+        {"x": 150, "y": 300, "width": 600, "height": 100, "label": "cta"}])
+    assert report.violations == ["cta:LEFT_OUT:150<200"]
+
+
+def test_caption_safe_zone_empty_input_is_a_failure() -> None:
+    assert caption_safe_zone.check([]).violations == ["NO_BOXES_SUPPLIED"]
+    assert caption_safe_zone.check([{"x": 1}]).violations[0].startswith("BOX_INVALID")
+    assert caption_safe_zone.check([(1, 2, 0, 0)]).violations == ["box1:EMPTY_BOX"]
+
+
+def test_caption_safe_zone_reads_the_format_limits() -> None:
+    limits_block = {"width_px": 1080, "height_px": 1920,
+                    "center_safe_zone_px": {"x_min": 180, "x_max": 900,
+                                            "y_min": 300, "y_max": 1500}}
+    zone = caption_safe_zone.zone_from_limits(limits_block)
+    assert (zone.x_min, zone.x_max, zone.y_min, zone.y_max) == (180, 900, 300, 1500)
+    report = caption_safe_zone.check([(185, 310, 600, 100)], limits=limits_block)
+    assert report.ok is True
+
+
+def test_caption_safe_zone_scales_to_another_frame() -> None:
+    report = caption_safe_zone.check([(110, 150, 300, 100)],
+                                     limits={"width_px": 540, "height_px": 960})
+    assert report.frame == (540, 960)
+    assert report.zone["x_min"] == 100 and report.zone["x_max"] == 440
+    assert report.ok is True

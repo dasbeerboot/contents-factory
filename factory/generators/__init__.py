@@ -1,3 +1,3 @@
-from . import text
+from . import image, text
 
-__all__ = ["text"]
+__all__ = ["image", "text"]

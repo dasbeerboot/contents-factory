@@ -12,7 +12,8 @@ from . import i18n, ledger, rules
 from .config import Config, init_home, load_config, repo_root
 from .credentials import load_profile_env
 from .errors import FactoryError
-from .gates import forbidden_words, limits, repeat_guard
+from .gates import caption_safe_zone, forbidden_words, limits, repeat_guard
+from .generators import image as image_generator
 from .generators import text as text_generator
 from .publishers import publisher_for, required_env
 from .queue import cli as queue_cli
@@ -20,8 +21,8 @@ from .publishers.base import DeliveryTracker, failure_mode
 from .queue.store import QueueStore, StoreTracker
 from .review import terminal
 from .scheduler import cron, launchd, tick, token_refresh
-from .spec.brief import (Output, load_brief, new_brief_id, parse_brief, save_brief,
-                         utc_now)
+from .spec.brief import (Brief, Output, load_brief, new_brief_id, parse_brief,
+                         save_brief, utc_now)
 from .spec.format import FormatSpec, catalogue, load_format
 from .spec.profile import Profile, list_profiles, load_profile
 from .spec.queue import QueueItem
@@ -75,6 +76,8 @@ def build_parser() -> argparse.ArgumentParser:
     gate_run.add_argument("--format")
     gate_run.add_argument("--kind", default="text")
     gate_run.add_argument("--gate", action="append", default=[])
+    gate_run.add_argument("--box", action="append", default=[],
+                          help="caption box as x,y,width,height[,label]; repeatable")
 
     queue_cli.build_parser(commands)
 
@@ -271,7 +274,8 @@ def _brief(config: Config, args: argparse.Namespace) -> int:
     raise FactoryError("BRIEF_COMMAND_UNKNOWN")
 
 
-IMPLEMENTED_GATES: tuple[str, ...] = ("limits", "forbidden_words", "repeat_guard")
+IMPLEMENTED_GATES: tuple[str, ...] = ("limits", "forbidden_words", "repeat_guard",
+                                      "caption_safe_zone")
 TEXT_DEFAULT_GATES: tuple[str, ...] = ("limits", "forbidden_words", "repeat_guard")
 
 
@@ -289,9 +293,26 @@ def _gate_plan(spec: FormatSpec | None, kind: str,
     return list(dict.fromkeys(planned))
 
 
+def _parse_boxes(raw: Sequence[str]) -> list[dict[str, object]]:
+    boxes: list[dict[str, object]] = []
+    for index, entry in enumerate(raw, 1):
+        parts = [piece.strip() for piece in str(entry).split(",")]
+        if len(parts) not in (4, 5):
+            raise FactoryError("BOX_INVALID", f"box{index}")
+        try:
+            numbers = [int(piece) for piece in parts[:4]]
+        except ValueError:
+            raise FactoryError("BOX_INVALID", f"box{index}") from None
+        boxes.append({"x": numbers[0], "y": numbers[1], "width": numbers[2],
+                      "height": numbers[3],
+                      "label": parts[4] if len(parts) == 5 else f"box{index}"})
+    return boxes
+
+
 def _gate_results(config: Config, *, body: str, profile: Profile,
                   kind: str, format_name: str | None,
-                  selected: Sequence[str]) -> list[tuple[str, str, str]]:
+                  selected: Sequence[str],
+                  boxes: Sequence[dict[str, object]] = ()) -> list[tuple[str, str, str]]:
     spec = load_format(kind, format_name) if format_name else None
     rules = spec.limits if spec else {}
     results: list[tuple[str, str, str]] = []
@@ -309,6 +330,13 @@ def _gate_results(config: Config, *, body: str, profile: Profile,
                                                  profile=profile.name,
                                                  closers=profile.closers)
             results.append((gate, terminal.PASS if allowed else terminal.FAIL, reason))
+        elif gate == "caption_safe_zone":
+            if not boxes:
+                results.append((gate, terminal.SKIP, "BOXES_REQUIRED"))
+                continue
+            report = caption_safe_zone.check(list(boxes), limits=rules)
+            results.append((gate, terminal.PASS if report.ok else terminal.FAIL,
+                            ",".join(report.violations)))
         else:
             results.append((gate, terminal.SKIP, "NOT_IMPLEMENTED"))
     return results
@@ -316,6 +344,7 @@ def _gate_results(config: Config, *, body: str, profile: Profile,
 
 def _gate(config: Config, args: argparse.Namespace) -> int:
     profile = _profile_of(config, args.profile)
+    boxes: list[dict[str, object]] = []
     if args.brief:
         brief = load_brief(config.home_path, args.brief)
         profile = _profile_of(config, brief.profile)
@@ -329,10 +358,12 @@ def _gate(config: Config, args: argparse.Namespace) -> int:
         bodies = [("text", args.text)]
         format_name = args.format
         kind = args.kind
+    boxes = _parse_boxes(getattr(args, "box", []) or [])
     failed = False
     for label, body in bodies:
         results = _gate_results(config, body=body, profile=profile, kind=kind,
-                                format_name=format_name, selected=args.gate)
+                                format_name=format_name, selected=args.gate,
+                                boxes=boxes)
         print(f"[{label}]")
         print(terminal.gate_table(results, lang=config.ui_lang))
         failed = failed or any(status == terminal.FAIL
@@ -341,12 +372,12 @@ def _gate(config: Config, args: argparse.Namespace) -> int:
 
 
 def _gen(config: Config, args: argparse.Namespace) -> int:
-    if args.gen_command == "image":
-        raise FactoryError("NOT_IMPLEMENTED", "gen image arrives with the image factory")
     home = config.home_path
     brief = load_brief(home, args.brief)
     profile = _profile_of(config, brief.profile)
     spec = load_format(brief.kind, brief.format)
+    if args.gen_command == "image":
+        return _gen_image(config, args, brief, profile, spec)
     rules_prefix = rules.prefix_for_kind(brief.kind)
     if profile.writer_rules.strip():
         rules_prefix = f"{rules_prefix}\n\n## Profile rules\n\n{profile.writer_rules}"
@@ -395,6 +426,49 @@ def _gen(config: Config, args: argparse.Namespace) -> int:
                             chosen=False) for entry in outputs]
     save_brief(home, brief)
     print(terminal.candidates(outputs, lang=config.ui_lang))
+    return EXIT_OK
+
+
+def _image_job(brief: Brief, profile: Profile,
+               spec: FormatSpec) -> image_generator.ImageJob:
+    prompt = (brief.prompt_final or brief.prompt_draft or spec.prompt_template).strip()
+    soul_id = profile.soul.soul_id
+    references = tuple(brief.references)
+    model = image_generator.pick_model(
+        has_soul=bool(soul_id), has_reference=bool(references),
+        needs_text=spec.name in {"og", "thumbnail", "cardnews"})
+    return image_generator.ImageJob(
+        prompt=prompt, model=model,
+        aspect_ratio=spec.aspect or "4:5",
+        references=references,
+        soul_id=soul_id if model == image_generator.MODEL_SOUL else None,
+        count=brief.count,
+        credit_cap=spec.credit_cap_per_item)
+
+
+def _gen_image(config: Config, args: argparse.Namespace, brief: Brief,
+               profile: Profile, spec: FormatSpec) -> int:
+    home = config.home_path
+    job = _image_job(brief, profile, spec)
+    if args.dry_run:
+        print(json.dumps(image_generator.plan(job), ensure_ascii=False, indent=2,
+                         sort_keys=True))
+        return EXIT_OK
+    jobs = image_generator.generate(job)
+    outputs: list[Output] = []
+    for payload in jobs:
+        for path in image_generator.result_paths(payload):
+            outputs.append(Output(path=path, gates={}, chosen=False))
+        ledger.record(home, track="image", kind=brief.format, model=job.model,
+                      credits=float(spec.credit_cap_per_item),
+                      profile=brief.profile, ref=brief.id,
+                      detail={"job_id": str(payload.get("id") or "")})
+    if not outputs:
+        raise FactoryError("NO_IMAGE_OUTPUT", brief.id)
+    brief.outputs = outputs
+    save_brief(home, brief)
+    print(terminal.candidates([entry.model_dump(mode="json") for entry in outputs],
+                              lang=config.ui_lang))
     return EXIT_OK
 
 

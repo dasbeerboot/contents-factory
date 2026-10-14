@@ -1,0 +1,15 @@
+name: product_shot
+kind: image
+platforms: [instagram]
+aspect: "4:5"
+questions:
+  - key: image.product.subject
+    question_ko: "무엇을 찍을까요?"
+    question_en: "What is the subject?"
+prompt_template: |
+  One product on a worn wooden surface, window light from the left.
+gates: [product_identity, caption_safe_zone]
+limits:
+  width_px: 1080
+  height_px: 1350
+credit_cap_per_item: 10
