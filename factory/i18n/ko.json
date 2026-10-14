@@ -49,5 +49,10 @@
   "error.env_missing": "크레덴셜 키 누락: {keys}. credentials.env에 넣어라.",
   "error.profile_missing": "그런 프로필 없다: {name}.",
   "error.state_handwrite": "런타임 홈 밑 상태파일은 factory CLI로만 바꾼다.",
-  "gates.skip": "건너뜀: {reason}"
+  "gates.skip": "건너뜀: {reason}",
+  "delivery.unconfirmed": "제출은 나갔고 응답이 유실돼서 {item_id}는 주차됐다. 플랫폼을 직접 확인해라. 글이 있으면 그대로 두고, 없으면 factory queue reopen을 돌려라.",
+  "delivery.reopen_refused": "해제 안 했다: {item_id}에 컨테이너나 발행 id가 남아 있어서 이미 올라갔을 수 있다. 플랫폼 먼저 확인해라.",
+  "delivery.resume": "{item_id}는 컨테이너가 이미 있어서 다음 tick이 publish 단계만 마무리한다. 두 번 만들지 않는다.",
+  "queue.reopened": "{item_id} ready로 복귀. 기록된 근거: {reason}",
+  "media.public_url_required": "{platform}은 URL에서 미디어를 가져가므로 로컬 경로로는 발행이 안 된다. media public_url을 먼저 채워라."
 }

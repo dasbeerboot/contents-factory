@@ -110,6 +110,15 @@ Each line is `<id> <ACTION> <REASON>`:
 
 ## Step 7: stuck items
 
+Explain these in the user's language rather than pasting the code at them:
+
+```
+factory i18n get delivery.unconfirmed
+factory i18n get delivery.resume
+factory i18n get delivery.reopen_refused
+factory i18n get media.public_url_required
+```
+
 - `DELIVERY_UNCONFIRMED`: tell the user to open the platform and look. If the post is
   there, leave it and purge the queue row. If it is not:
   `factory queue reopen --item q_... --reason "checked the profile, nothing posted"`.

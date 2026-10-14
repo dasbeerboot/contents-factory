@@ -150,7 +150,7 @@ def run(config: Config, args: argparse.Namespace) -> int:
         return 0
     if args.queue_command == "reopen":
         item = store.reopen_delivery(args.item, args.reason)
-        print(f"{item.id} phase={item.phase}")
+        print(translate("queue.reopened", item_id=item.id, reason=args.reason))
         return 0
     if args.queue_command == "purge":
         before = args.before or utc_stamp(now)

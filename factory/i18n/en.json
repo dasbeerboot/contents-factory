@@ -49,5 +49,10 @@
   "error.env_missing": "Missing credentials keys: {keys}. Add them to credentials.env.",
   "error.profile_missing": "No such profile: {name}.",
   "error.state_handwrite": "State under the runtime home is only changed through the factory CLI.",
-  "gates.skip": "SKIP: {reason}"
+  "gates.skip": "SKIP: {reason}",
+  "delivery.unconfirmed": "A send was in flight and the answer was lost, so {item_id} is parked. Check the platform by hand: if the post is there, leave it; if not, run factory queue reopen.",
+  "delivery.reopen_refused": "Not reopened: {item_id} still carries a container or a published id, so the post may exist. Check the platform first.",
+  "delivery.resume": "{item_id} already has a container, so the next tick only finishes the publish step. Nothing is created twice.",
+  "queue.reopened": "{item_id} is back to ready. Reason on record: {reason}",
+  "media.public_url_required": "{platform} fetches media from a URL, so a local path cannot be posted. Fill media public_url first."
 }
