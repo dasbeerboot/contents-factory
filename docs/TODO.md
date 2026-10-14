@@ -38,32 +38,36 @@
 - [x] ✅ 규칙 문서 4종 (`docs/rules/`)
 - [x] ✅ 스킬 6종 (`.claude/skills/`)
 - [x] ✅ _example 프로필, README BYO Supabase
-- [x] ✅ gen image 드라이런 (`factory/generators/image.py`) — 실호출 미검증
-- [x] ✅ pytest 252 passed
+- [x] ✅ gen image 실호출 + 견적 대조·BUDGET_EXCEEDED (`factory/generators/image.py`)
+- [x] ✅ pytest 348 passed (`uv run pytest`, numpy·pillow 포함)
 - [x] ✅ `factory auth threads` OAuth (`factory/auth/`) + Instagram 스텁, setup SKILL 반영
 - [x] ✅ `factory.toml [extra_corpus]` — repeat_guard 에 외부 발행 이력 합류
 - [x] ✅ `factory queue add --extra key=value`
 - [x] ✅ `factory media host --item q_...` (`media_host` 를 부르는 쪽이 아예 없었다)
 - [x] ✅ 운영 프로필 `unni`·`sujin` 구성 (`~/.contents-factory/profiles/`)
+- [x] ✅ 영상 파이프라인 P2 (`factory/generators/video/`) + 게이트 stt_wpm·limb_motion·
+      bg_motion·identity. feat/gen-image-video-p2 머지, 워크트리·브랜치 정리 완료
+- [x] ✅ 엔드카드를 assemble 오버레이로 (모델이 "SAJU UNUI" 로 틀리던 것)
+- [x] ✅ brief id 충돌 수정 — `b_<UTC초>_<4자>`, 생성 시 덮어쓰기 가드
+- [x] ✅ 원장 멱등키 `ledger.charge(op=...)` — 작업 1건 = 과금 1건
 
 ## P1
 - [ ] ❌ TikTok MCP 토큰이 24h 만료인데 팩토리는 정적 `HIGGSFIELD_MCP_TOKEN` 만 읽는다.
       원본 파이프라인은 refresh_token 으로 조용히 갱신한다 — 갱신 경로 이식 필요
 - [ ] ❌ `factory auth instagram` 교환 구현 (현재 동의 URL + 수동 절차만)
+- [ ] ❌ `factory auth threads` 실사용 검증 (지인 계정 1건)
+- [ ] ❌ 엔드카드 수정 후 신규 테이크 1건 — 재조립본은 옛 테이크라 모델이 구운
+      "SAJU UNUI" 가 새 카드 뒤에 유령으로 남아 있다
 - [ ] ❌ 프로필 옵션 `auto_approve` (armed 게이트 유지)
-- [ ] ❌ `factory auth threads` 실사용 검증(지인 계정 1건) + `factory auth instagram` 구현
-- [ ] ❌ TikTok MCP 토큰 자동 refresh (현재 정적 토큰 수 시간 만료)
-- [ ] ❌ brief id 충돌 수정 (같은 날 같은 포맷이면 id 동일 → 덮어씀, 10/14 실측)
 - [ ] ❌ 수진 프로필용 비케이스 포맷(2인칭 관찰글) — 케이스썰은 실사연만 규칙
 - [ ] ❌ 네이버 이미지 업로드 (`IMAGE_UPLOAD_UNSUPPORTED` 해제)
-- [ ] ❌ gen image 실호출 1건 + 크레딧 원장 기록 검증
 - [ ] ❌ 텔레그램 리뷰 채널 (`factory/review/telegram.py`)
 - [ ] ❌ CTA 로테이션 적용 로직 (`platforms.json cta_rotation`)
 - [ ] ❌ 미구현 게이트 SKIP 해소: text_legibility·logo_geometry·product_identity
 
 ## P2
-- [ ] ❌ gen video (스틸→Seedance→TTS→자막→조립) + 게이트 stt_wpm·limb_motion·bg_motion·identity
 - [ ] ❌ 영상 리뷰 sendVideo 인라인
+- [ ] ❌ 테이크 접합부 FRAME_JUMP (멀티테이크 실측에 남은 유일한 bg_motion 위반)
 
 ## P3
 - [ ] ❌ Meta 앱 `threads_content_publish` 등 검수 제출 (공개 전환 시)
