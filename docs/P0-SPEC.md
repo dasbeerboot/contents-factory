@@ -204,3 +204,17 @@ factory ledger summary [--days 30]
 | opus 4.8 | 레포 뼈대, spec 모델, CLI 골격, queue/scheduler/tick, publishers 5종 이식, 캐싱 적용 text generator, 스킬 1개(writing-factory) 원형 |
 | codex | i18n ko/en 사전 전량, formats yaml 카탈로그 15개, 나머지 SKILL.md 5개(원형 승인 후), gates 이식·테스트, rules md 4종 추출 정리 |
 | 주원 | 테스트용 계정 제공, 사용자 계정을 Threads 테스터로 추가(§8-4, 앱 관리자 권한), 네이버 aside 로그인 |
+
+## 10. 구현 중 결정 (2026-10-14, 뼈대 1차 후)
+
+| # | 질문 | 결정 |
+|---|---|---|
+| 1 | 큐 자동승인(무응답=진행) | P0는 승인 필수 유지. P1에 프로필 옵션 `auto_approve`(기본 false) 추가. 켜도 armed 게이트는 그대로 |
+| 2 | 중복발행 방어 | **P0에 포함**. `threads_delivery.py`의 phase 머신(ready→creating→container→publishing→published, content sha256, 재개)을 QueueItem에 이식. 실발행(§8-3) 전 필수 |
+| 3 | 네이버 긴 글·이미지 | `cors_server.mjs` 벤더링해 90KB 상한 해제는 P0. 이미지 업로드는 P1 |
+| 4 | 캐싱 최소 프리픽스 | 패딩 금지. system 프리픽스 = persona.md + `docs/rules/writing-rules.md` 해당 절 + 포맷 prompt_template 순으로 합쳐 1024 토큰 이상이면 마커, 미만이면 캐싱 생략 + ledger에 `cache:skipped` 기록 |
+| 5 | 지각 유예 | 900초 확정 |
+| 6 | 비밀 아닌 계정 ID 위치 | `platforms.json`으로 이동 (`tiktok.connector_id`, `naver_blog.blog_id`). credentials.env는 토큰·시크릿만 |
+| 7 | media_host 버킷 | 사용자 BYO Supabase 프로젝트. saju 버킷 공유 안 함. README에 버킷 공개 설정·7일 수명 정책 예시 |
+
+codex 한도 소진(11/13 리셋)으로 §9 codex 범위의 잔여분(SKILL.md 5개·게이트 테스트·i18n 보강)은 opus가 이어서 한다. codex가 이미 만든 `docs/rules/*.md` 4종과 `factory/formats/**/*.yaml` 15개는 워크트리 `.worktrees/codex-261014-140940`, `.worktrees/codex-261014-141556`에 있다.
