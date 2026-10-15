@@ -237,5 +237,19 @@
   "telegram.callback.failed": "Failed: {code}",
   "telegram.alert.publish_failed": "Publish failed for {item_id}: {code}. It is still on the queue.",
   "telegram.alert.delivery_unknown": "{item_id} delivery unconfirmed ({code}). Check the platform by hand: if the post is there leave it, otherwise run factory queue reopen.",
-  "telegram.summary.body": "Published yesterday {published_yesterday} · scheduled today {scheduled_today} · awaiting confirmation {awaiting_confirmation}"
+  "telegram.summary.body": "Published yesterday {published_yesterday} · scheduled today {scheduled_today} · awaiting confirmation {awaiting_confirmation}",
+  "launcher.created": "Desktop launcher written: {path}. From now on, double-click that.",
+  "launcher.removed": "Launcher removed: {path}",
+  "launcher.absent": "No launcher at {path}. Nothing to remove.",
+  "launcher.dry_run": "Dry run. This is what would be written to {path}; no file was touched.",
+  "remote.plan": "Registering {agent} remote control via {runner}. Target {target}, log {log}. The definition follows.",
+  "remote.dry_run": "Dry run. The definition above was printed only: nothing was registered and nothing ran.",
+  "remote.installed": "{agent} remote control registered. While this PC is awake the phone app will list the contents-factory environment. Log {log}",
+  "remote.install_failed": "{runner} registration failed. Check the definition with factory remote install --dry-run, then retry.",
+  "remote.untrusted": "Not registered ({code}). Open the agent in this folder once and accept the trust prompt yourself: cd {repo}, run {agent}, answer yes. The trust record is never edited from here. Then retry.",
+  "remote.pairing": "Pairing the phone is a one-time human step. Scan the QR in the desktop app, or run `{command}` for a manual code to type on the phone.",
+  "remote.os_unsupported": "{agent} remote control does not officially support this OS ({os}). It was registered, but the phone may never see it.",
+  "remote.sleep": "A sleeping PC cannot be reached from the phone. Turn sleep off. {command}",
+  "install.sleep.macos": "Opening the sleep settings. Turn on preventing automatic sleep when the display is off.",
+  "install.sleep.windows": "To stop the machine sleeping, run powercfg /change standby-timeout-ac 0 in PowerShell."
 }

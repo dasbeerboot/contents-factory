@@ -224,6 +224,26 @@
     "command": "factory key set --profile <프로필> --name ANTHROPIC_API_KEY",
     "human": "There is no key to classify a free-form answer."
   },
+  "CLAUDE_CLI_MISSING": {
+    "action": "Install Claude Code.",
+    "command": "npm i -g @anthropic-ai/claude-code",
+    "human": "Claude Code is not installed."
+  },
+  "CLAUDE_WORKSPACE_UNTRUSTED": {
+    "action": "Open claude once in that folder and allow it.",
+    "command": "factory remote install",
+    "human": "Claude Code does not trust this folder yet."
+  },
+  "CODEX_CLI_MISSING": {
+    "action": "Install it, or use claude instead.",
+    "command": "factory remote install --agent claude",
+    "human": "The Codex CLI is not installed."
+  },
+  "CODEX_WORKSPACE_UNTRUSTED": {
+    "action": "Open codex once in that folder and allow it.",
+    "command": "factory remote install --agent codex",
+    "human": "Codex does not trust this folder yet."
+  },
   "CODE_INVALID": {
     "action": "Paste the full address right after approving.",
     "command": "factory auth threads --profile <프로필>",
@@ -724,6 +744,21 @@
     "command": "factory profile platform --profile <프로필> --platform threads --slot 12:00Z",
     "human": "There is no next slot to carry to."
   },
+  "LAUNCHER_COMMAND_UNKNOWN": {
+    "action": "Use create, remove or status.",
+    "command": "factory launcher status",
+    "human": "That is not a launcher subcommand."
+  },
+  "LAUNCHER_REMOVE_FAILED": {
+    "action": "It is open or not yours; delete it by hand.",
+    "command": "factory launcher status",
+    "human": "The launcher file could not be deleted."
+  },
+  "LAUNCHER_WRITE_FAILED": {
+    "action": "Check the desktop folder permissions, or point FACTORY_DESKTOP somewhere writable.",
+    "command": "factory launcher status",
+    "human": "The desktop launcher could not be written."
+  },
   "LEDGER_OP_REQUIRED": {
     "action": "Pass the op key so one job bills once.",
     "command": "",
@@ -1174,10 +1209,30 @@
     "command": "",
     "human": "A reference file was not found."
   },
+  "REMOTE_AGENT_UNKNOWN": {
+    "action": "Use claude or codex.",
+    "command": "factory remote status --agent claude",
+    "human": "That agent name is unknown."
+  },
+  "REMOTE_COMMAND_UNKNOWN": {
+    "action": "Use install, remove or status.",
+    "command": "factory remote status",
+    "human": "That is not a remote subcommand."
+  },
+  "REMOTE_OS_UNSUPPORTED": {
+    "action": "It registers, but the phone may never connect; use the other agent.",
+    "command": "factory remote status",
+    "human": "Phone remote control for that agent is not supported on this OS."
+  },
   "REMOTE_REJECTED": {
     "action": "Read the companion code; usually a scope or format problem.",
     "command": "",
     "human": "The platform rejected the request."
+  },
+  "REMOTE_RUNNER_UNKNOWN": {
+    "action": "Leave it as auto.",
+    "command": "factory remote status",
+    "human": "That runner does not fit this host."
   },
   "REOPEN_REASON_REQUIRED": {
     "action": "Write what you saw on the platform.",

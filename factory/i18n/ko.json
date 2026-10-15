@@ -237,5 +237,19 @@
   "telegram.callback.failed": "처리 실패: {code}",
   "telegram.alert.publish_failed": "발행 실패 {item_id} {code}. 큐에 그대로 남아 있다.",
   "telegram.alert.delivery_unknown": "{item_id} 배송 미확정 ({code}). 플랫폼을 직접 확인해라 — 글이 있으면 그대로 두고, 없으면 factory queue reopen.",
-  "telegram.summary.body": "어제 발행 {published_yesterday}건 · 오늘 예정 {scheduled_today}건 · 대기 컨펌 {awaiting_confirmation}건"
+  "telegram.summary.body": "어제 발행 {published_yesterday}건 · 오늘 예정 {scheduled_today}건 · 대기 컨펌 {awaiting_confirmation}건",
+  "launcher.created": "바탕화면에 런처 만들었다: {path}. 다음엔 이것만 더블클릭하면 된다.",
+  "launcher.removed": "런처 지웠다: {path}",
+  "launcher.absent": "런처가 없다: {path}. 지울 게 없다.",
+  "launcher.dry_run": "드라이런이다. {path} 에 아래 내용을 쓸 예정이고 파일은 안 건드렸다.",
+  "remote.plan": "{agent} 원격제어를 {runner} 로 등록한다. 대상 {target}, 로그 {log}. 아래가 등록할 정의다.",
+  "remote.dry_run": "드라이런이다. 위 정의를 출력만 했고 등록도 실행도 안 했다.",
+  "remote.installed": "{agent} 원격제어 등록 완료. PC가 켜져 있고 잠자기가 아니면 폰 앱에서 contents-factory 환경이 보인다. 로그 {log}",
+  "remote.install_failed": "{runner} 등록 실패. factory remote install --dry-run 으로 정의를 확인하고 다시 돌려라.",
+  "remote.untrusted": "등록 안 했다 ({code}). 이 폴더에서 에이전트를 한 번 직접 열어 신뢰를 수락해라. cd {repo} 하고 {agent} 를 실행한 뒤 폴더 신뢰 질문에 예라고 답하면 된다. 신뢰 기록 파일은 내가 고치지 않는다. 수락 뒤 다시 돌려라.",
+  "remote.pairing": "폰 페어링은 사람이 한 번 해야 한다. 데스크톱 앱에서 QR을 찍거나 `{command}` 로 수동 코드를 받아 폰에 입력해라.",
+  "remote.os_unsupported": "{agent} 원격제어는 이 OS({os})를 공식 지원하지 않는다. 등록은 했지만 폰에서 안 보일 수 있다.",
+  "remote.sleep": "PC가 잠들면 폰에서 안 붙는다. 잠자기를 끄자. {command}",
+  "install.sleep.macos": "잠자기 설정 창을 연다. 디스플레이가 꺼져 있을 때 자동 잠자기 방지를 켜라.",
+  "install.sleep.windows": "잠자기를 끄려면 PowerShell에서 powercfg /change standby-timeout-ac 0 을 실행해라."
 }

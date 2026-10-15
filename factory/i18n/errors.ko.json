@@ -224,6 +224,26 @@
     "command": "factory key set --profile <프로필> --name ANTHROPIC_API_KEY",
     "human": "자유롭게 쓴 답을 분류할 키가 없어요."
   },
+  "CLAUDE_CLI_MISSING": {
+    "action": "Claude Code 를 설치하세요.",
+    "command": "npm i -g @anthropic-ai/claude-code",
+    "human": "Claude Code 가 이 컴퓨터에 없어요."
+  },
+  "CLAUDE_WORKSPACE_UNTRUSTED": {
+    "action": "그 폴더에서 claude 를 한 번 직접 열어 신뢰를 허용하세요.",
+    "command": "factory remote install",
+    "human": "이 폴더를 Claude Code 가 아직 신뢰하지 않아요."
+  },
+  "CODEX_CLI_MISSING": {
+    "action": "Codex CLI 를 설치하거나 claude 를 쓰세요.",
+    "command": "factory remote install --agent claude",
+    "human": "Codex CLI 가 이 컴퓨터에 없어요."
+  },
+  "CODEX_WORKSPACE_UNTRUSTED": {
+    "action": "그 폴더에서 codex 를 한 번 직접 열어 신뢰를 허용하세요.",
+    "command": "factory remote install --agent codex",
+    "human": "이 폴더를 Codex 가 아직 신뢰하지 않아요."
+  },
   "CODE_INVALID": {
     "action": "허용 직후의 전체 주소를 그대로 붙여넣으세요.",
     "command": "factory auth threads --profile <프로필>",
@@ -724,6 +744,21 @@
     "command": "factory profile platform --profile <프로필> --platform threads --slot 12:00Z",
     "human": "넘길 다음 슬롯이 없어요."
   },
+  "LAUNCHER_COMMAND_UNKNOWN": {
+    "action": "create, remove, status 중에서 쓰세요.",
+    "command": "factory launcher status",
+    "human": "런처 명령을 잘못 썼어요."
+  },
+  "LAUNCHER_REMOVE_FAILED": {
+    "action": "파일이 열려 있거나 권한이 없습니다. 직접 지우세요.",
+    "command": "factory launcher status",
+    "human": "런처 파일을 지우지 못했어요."
+  },
+  "LAUNCHER_WRITE_FAILED": {
+    "action": "바탕화면 폴더 권한을 확인하거나 FACTORY_DESKTOP 으로 위치를 지정하세요.",
+    "command": "factory launcher status",
+    "human": "바탕화면에 런처를 못 만들었어요."
+  },
   "LEDGER_OP_REQUIRED": {
     "action": "같은 작업이 두 번 기록되지 않도록 키를 넘기세요.",
     "command": "",
@@ -1174,10 +1209,30 @@
     "command": "",
     "human": "참조 파일을 못 찾았어요."
   },
+  "REMOTE_AGENT_UNKNOWN": {
+    "action": "claude 또는 codex 를 쓰세요.",
+    "command": "factory remote status --agent claude",
+    "human": "그런 에이전트 이름이 없어요."
+  },
+  "REMOTE_COMMAND_UNKNOWN": {
+    "action": "install, remove, status 중에서 쓰세요.",
+    "command": "factory remote status",
+    "human": "원격제어 명령을 잘못 썼어요."
+  },
+  "REMOTE_OS_UNSUPPORTED": {
+    "action": "등록은 되지만 폰에서 안 붙을 수 있습니다. 다른 에이전트를 쓰세요.",
+    "command": "factory remote status",
+    "human": "이 OS 에서는 그 에이전트 폰 원격제어가 아직 안 돼요."
+  },
   "REMOTE_REJECTED": {
     "action": "거절 사유 코드를 같이 확인하세요. 대개 권한이나 형식 문제예요.",
     "command": "",
     "human": "플랫폼이 요청을 거절했어요."
+  },
+  "REMOTE_RUNNER_UNKNOWN": {
+    "action": "auto 로 두면 알아서 고릅니다.",
+    "command": "factory remote status",
+    "human": "이 컴퓨터에 맞지 않는 등록 방식이에요."
   },
   "REOPEN_REASON_REQUIRED": {
     "action": "플랫폼에서 직접 확인한 내용을 적으세요.",

@@ -14,6 +14,8 @@ from typing import Sequence
 from . import doctor as doctor_module
 from . import explain as explain_module
 from . import i18n, ledger, osinfo, rules
+from . import launcher as launcher_module
+from . import remote as remote_module
 from . import start as start_module
 from .auth import instagram as instagram_auth
 from .auth import threads as threads_auth
@@ -198,6 +200,42 @@ def build_parser() -> argparse.ArgumentParser:
     schedule_tick = schedule_actions.add_parser("tick")
     schedule_tick.add_argument("--dry-run", action="store_true")
 
+    launcher = commands.add_parser(
+        "launcher", help="desktop launcher that runs factory start on double-click")
+    launcher_actions = launcher.add_subparsers(dest="launcher_command", required=True)
+    launcher_create = launcher_actions.add_parser("create")
+    launcher_create.add_argument("--os", dest="os_name", choices=list(osinfo.OS_CHOICES),
+                                 help="defaults to the configured os")
+    launcher_create.add_argument("--name", default=launcher_module.NAME)
+    launcher_create.add_argument("--dry-run", action="store_true",
+                                 help="print the script, write nothing")
+    launcher_remove = launcher_actions.add_parser("remove")
+    launcher_remove.add_argument("--os", dest="os_name",
+                                 choices=list(osinfo.OS_CHOICES))
+    launcher_remove.add_argument("--name", default=launcher_module.NAME)
+    launcher_status = launcher_actions.add_parser("status")
+    launcher_status.add_argument("--os", dest="os_name",
+                                 choices=list(osinfo.OS_CHOICES))
+    launcher_status.add_argument("--name", default=launcher_module.NAME)
+
+    remote = commands.add_parser(
+        "remote", help="keep the agent's phone remote control running on this PC")
+    remote_actions = remote.add_subparsers(dest="remote_command", required=True)
+    remote_runners = ["auto", *remote_module.RUNNERS]
+    for action in ("install", "remove", "status"):
+        single = remote_actions.add_parser(action)
+        single.add_argument("--agent", choices=list(remote_module.AGENT_CHOICES),
+                            help="defaults to the installed agent")
+        single.add_argument("--runner", choices=remote_runners, default="auto")
+        single.add_argument("--os", dest="os_name",
+                            choices=list(osinfo.OS_CHOICES))
+        if action != "status":
+            single.add_argument("--dry-run", action="store_true",
+                                help="print the daemon definition, register nothing")
+        if action == "install":
+            single.add_argument("--no-probe", dest="probe", action="store_false",
+                                help="do not run the agent once to record trust")
+
     media = commands.add_parser("media", help="media host: upload local media, get a URL")
     media_actions = media.add_subparsers(dest="media_command", required=True)
     media_host_parser = media_actions.add_parser(
@@ -309,6 +347,8 @@ def dispatch(config: Config, args: argparse.Namespace) -> int:
         "auth": _auth,
         "telegram": telegram_cli.run,
         "schedule": _schedule,
+        "launcher": _launcher,
+        "remote": _remote,
         "token": _token,
         "ledger": _ledger,
         "i18n": _i18n,
@@ -1172,6 +1212,93 @@ def _schedule(config: Config, args: argparse.Namespace) -> int:
     if args.schedule_command == "tick":
         return _tick(config, dry_run=args.dry_run)
     raise FactoryError("SCHEDULE_COMMAND_UNKNOWN")
+
+
+def _launcher(config: Config, args: argparse.Namespace) -> int:
+    """The desktop file a non-technical user double-clicks instead of a terminal."""
+    translate = i18n.Translator(config.ui_lang)
+    os_name = getattr(args, "os_name", None) or config.os
+    name = getattr(args, "name", launcher_module.NAME)
+    if args.launcher_command == "create":
+        report = launcher_module.create(repo=repo_root(), os_name=os_name, name=name,
+                                        dry_run=getattr(args, "dry_run", False))
+        if report.get("dry_run"):
+            print(translate("launcher.dry_run", path=report["path"]))
+            print(str(report["script"]))
+            return EXIT_OK
+        print(translate("launcher.created", path=report["path"]))
+        if report.get("warning"):
+            print(translate("auth.warning", detail=str(report["warning"])))
+        return EXIT_OK
+    if args.launcher_command == "remove":
+        report = launcher_module.remove(os_name=os_name, name=name)
+        print(translate("launcher.removed", path=report["path"])
+              if report["removed"] else translate("launcher.absent",
+                                                  path=report["path"]))
+        return EXIT_OK
+    if args.launcher_command == "status":
+        print(json.dumps(launcher_module.status(os_name=os_name, name=name),
+                         ensure_ascii=False, indent=2, sort_keys=True))
+        return EXIT_OK
+    raise FactoryError("LAUNCHER_COMMAND_UNKNOWN")
+
+
+def _remote_agent(args: argparse.Namespace) -> str:
+    """`--agent` wins; otherwise whichever agent is actually installed."""
+    chosen = getattr(args, "agent", None)
+    if chosen:
+        return str(chosen)
+    found = remote_module.detect_agents()
+    return found[0] if found else "claude"
+
+
+def _remote(config: Config, args: argparse.Namespace) -> int:
+    """Always-on phone remote control. The daemon definition is always printed."""
+    translate = i18n.Translator(config.ui_lang)
+    agent = _remote_agent(args)
+    os_name = getattr(args, "os_name", None) or config.os
+    runner = getattr(args, "runner", "auto")
+    dry_run = getattr(args, "dry_run", False)
+    home = config.home_path
+    if args.remote_command == "status":
+        print(json.dumps(remote_module.status(agent=agent, runner=runner,
+                                              repo=repo_root(), os_name=os_name,
+                                              home=home),
+                         ensure_ascii=False, indent=2, sort_keys=True))
+        return EXIT_OK
+    if args.remote_command == "remove":
+        report = remote_module.remove(agent=agent, runner=runner, os_name=os_name,
+                                      dry_run=dry_run)
+        print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+        return EXIT_OK
+    if args.remote_command != "install":
+        raise FactoryError("REMOTE_COMMAND_UNKNOWN")
+    report = remote_module.install(agent=agent, repo=repo_root(), runner=runner,
+                                   os_name=os_name, home=home, dry_run=dry_run,
+                                   probe=getattr(args, "probe", True))
+    print(translate("remote.plan", agent=agent, runner=str(report["runner"]),
+                    target=str(report.get("target", "")),
+                    log=str(report["log"])))
+    print(str(report.get("document", "")))
+    if report.get("warning") == "REMOTE_OS_UNSUPPORTED":
+        print(translate("remote.os_unsupported", agent=agent, os=os_name))
+    blocked = report.get("blocked")
+    if blocked:
+        print(translate("remote.untrusted", code=str(blocked), repo=str(report["repo"]),
+                        agent=agent))
+        return EXIT_ERROR
+    if dry_run:
+        print(translate("remote.dry_run"))
+        return EXIT_OK
+    if not report.get("installed"):
+        print(translate("remote.install_failed", runner=str(report["runner"])))
+        return EXIT_ERROR
+    print(translate("remote.installed", agent=agent, log=str(report["log"])))
+    if report.get("pairing"):
+        print(translate("remote.pairing", command=str(report["pairing"])))
+    hint = remote_module.sleep_hint(os_name)
+    print(translate("remote.sleep", command=hint["open"]))
+    return EXIT_OK
 
 
 def _tick(config: Config, *, dry_run: bool) -> int:
