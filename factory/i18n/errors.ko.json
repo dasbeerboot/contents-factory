@@ -1219,6 +1219,11 @@
     "command": "factory remote status",
     "human": "원격제어 명령을 잘못 썼어요."
   },
+  "REMOTE_NOT_INSTALLED": {
+    "action": "폰에서 조작하려면 한 번 등록하세요. PC 는 켜져 있어야 합니다.",
+    "command": "factory remote install",
+    "human": "폰 원격제어가 이 컴퓨터에 등록되지 않았어요."
+  },
   "REMOTE_OS_UNSUPPORTED": {
     "action": "등록은 되지만 폰에서 안 붙을 수 있습니다. 다른 에이전트를 쓰세요.",
     "command": "factory remote status",
@@ -1233,6 +1238,11 @@
     "action": "auto 로 두면 알아서 고릅니다.",
     "command": "factory remote status",
     "human": "이 컴퓨터에 맞지 않는 등록 방식이에요."
+  },
+  "REMOTE_STATUS_UNREADABLE": {
+    "action": "상태 명령을 직접 돌려보세요.",
+    "command": "factory remote status",
+    "human": "폰 원격제어 상태를 못 읽었어요."
   },
   "REOPEN_REASON_REQUIRED": {
     "action": "플랫폼에서 직접 확인한 내용을 적으세요.",
@@ -1398,6 +1408,11 @@
     "action": "잠시 뒤 다시 시도하세요.",
     "command": "factory telegram status",
     "human": "텔레그램 응답을 못 읽었어요."
+  },
+  "TELEGRAM_STATUS_UNREADABLE": {
+    "action": "상태 명령을 직접 돌려보세요.",
+    "command": "factory telegram status",
+    "human": "텔레그램 설정 상태를 못 읽었어요."
   },
   "TELEGRAM_TOKEN_INVALID": {
     "action": "BotFather 가 준 줄을 그대로 붙여넣으세요.",

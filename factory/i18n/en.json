@@ -251,5 +251,12 @@
   "remote.os_unsupported": "{agent} remote control does not officially support this OS ({os}). It was registered, but the phone may never see it.",
   "remote.sleep": "A sleeping PC cannot be reached from the phone. Turn sleep off. {command}",
   "install.sleep.macos": "Opening the sleep settings. Turn on preventing automatic sleep when the display is off.",
-  "install.sleep.windows": "To stop the machine sleeping, run powercfg /change standby-timeout-ac 0 in PowerShell."
+  "install.sleep.windows": "To stop the machine sleeping, run powercfg /change standby-timeout-ac 0 in PowerShell.",
+  "telegram.preview.draft_header": "Draft from {profile} for {platform} ({kind}). The publish buttons come once it is queued.",
+  "wizard.phone.sent": "Sent to your phone as well.",
+  "wizard.phone.failed": "Sending to the phone failed ({code}). Carry on in the terminal.",
+  "wizard.phone.answered_ok": "The phone pressed publish first, so that answer is the one used.",
+  "wizard.phone.answered_no": "The phone rejected it first, so a new one gets made.",
+  "wizard.phone.answered_edit": "The phone sent a correction first: {text}",
+  "wizard.phone.already_answered": "The phone already answered, so that one stands and this one is dropped."
 }

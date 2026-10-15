@@ -48,8 +48,25 @@ class Plan:
 
 
 def installed(which: Callable[[str], str | None] | None = None) -> list[str]:
-    find = which or osinfo.which
+    """Which agents this machine has.
+
+    `find_binary`, not `which`: the desktop launcher is double-clicked, so this process
+    can inherit a PATH that never saw `~/.local/bin` or the npm global prefix, and the
+    agent is exactly the thing installed there. Reporting "no agent installed" to
+    someone who is looking at the Claude Code icon is the worst possible first screen.
+    """
+    find = which or osinfo.find_binary
     return [name for name in AGENTS if find(name)]
+
+
+def agent_binary(agent: str) -> str:
+    """Absolute path to the agent, so a stripped PATH cannot break the exec."""
+    if agent not in AGENTS:
+        raise FactoryError("AGENT_UNKNOWN", str(agent)[:32])
+    found = osinfo.find_binary(agent)
+    if not found:
+        raise FactoryError("AGENT_MISSING", agent)
+    return found
 
 
 def prompt_for(agent: str) -> str:
@@ -117,9 +134,12 @@ def doctor_blockers(config: Config,
 
 
 def launch(target: Plan, *, launcher: Launcher | None = None) -> int:
+    """Run the plan. The printed command keeps the bare name; the exec uses the
+    absolute path, because a launcher-started process may have neither on PATH."""
     run = launcher or _subprocess_launcher
+    argv = (agent_binary(target.agent), *target.argv[1:])
     try:
-        return int(run(target.argv, target.directory))
+        return int(run(argv, target.directory))
     except FactoryError:
         raise
     except Exception:  # noqa: BLE001 - the printed command is still usable by hand

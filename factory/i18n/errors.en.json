@@ -1219,6 +1219,11 @@
     "command": "factory remote status",
     "human": "That is not a remote subcommand."
   },
+  "REMOTE_NOT_INSTALLED": {
+    "action": "Register it once to drive this from a phone; the PC has to stay awake.",
+    "command": "factory remote install",
+    "human": "Phone remote control is not registered on this PC."
+  },
   "REMOTE_OS_UNSUPPORTED": {
     "action": "It registers, but the phone may never connect; use the other agent.",
     "command": "factory remote status",
@@ -1233,6 +1238,11 @@
     "action": "Leave it as auto.",
     "command": "factory remote status",
     "human": "That runner does not fit this host."
+  },
+  "REMOTE_STATUS_UNREADABLE": {
+    "action": "Run the status command directly.",
+    "command": "factory remote status",
+    "human": "The phone remote control state could not be read."
   },
   "REOPEN_REASON_REQUIRED": {
     "action": "Write what you saw on the platform.",
@@ -1398,6 +1408,11 @@
     "action": "Retry shortly.",
     "command": "factory telegram status",
     "human": "The Telegram response could not be read."
+  },
+  "TELEGRAM_STATUS_UNREADABLE": {
+    "action": "Run the status command directly.",
+    "command": "factory telegram status",
+    "human": "The Telegram wiring could not be read."
   },
   "TELEGRAM_TOKEN_INVALID": {
     "action": "Paste the line BotFather gave you, unchanged.",

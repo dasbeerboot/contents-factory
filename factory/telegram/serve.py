@@ -177,6 +177,11 @@ class Serve:
         try:
             state.save_edit(self.home, item_id, text)
             self.store.set_extra(item_id, EDIT_KEY, text[:2000])
+            # "Fix this" means "not this one". Leaving an armed item armed would let
+            # the slot publish the text the user just asked to change, and the
+            # regeneration is the wizard's job which happens later.
+            self.store.unapprove(item_id)
+            self.store.disarm(item_id)
         except FactoryError as error:
             self.say(self.translate("telegram.callback.failed", code=error.code))
             self.log(f"EDIT_FAILED {item_id} {error.code}")

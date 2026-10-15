@@ -139,6 +139,68 @@ def which(name: str) -> str | None:
     return None
 
 
+# Where a tool lands when `PATH` is not the one a login shell builds. A launcher
+# double-clicked in Finder or Explorer, a launchd agent and a cron line all run with a
+# PATH that never sourced a profile, so `claude`, `uv` and `ffmpeg` are present on disk
+# and invisible to `which`. These are checked only after `which` has already failed.
+# `~` entries stay relative so a generated script can carry $HOME / %USERPROFILE%
+# instead of an expanded path: a Korean account name would otherwise put non-ASCII
+# bytes into a .bat, which cmd.exe reads in the console codepage.
+POSIX_BIN_DIRS: tuple[str, ...] = (
+    "~/.local/bin", "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
+    "~/.npm-global/bin", "~/.volta/bin", "~/.bun/bin", "~/.cargo/bin",
+)
+WINDOWS_BIN_DIRS: tuple[str, ...] = (
+    r"~\.local\bin", r"~\AppData\Roaming\npm", r"~\AppData\Local\Microsoft\WindowsApps",
+    r"~\.cargo\bin", r"~\scoop\shims",
+)
+
+
+def bin_dir_names(os_name: str | None = None) -> tuple[str, ...]:
+    target = normalize(os_name) if os_name else detect_os()
+    return WINDOWS_BIN_DIRS if target == "windows" else POSIX_BIN_DIRS
+
+
+def bin_dirs(os_name: str | None = None) -> tuple[Path, ...]:
+    return tuple(expand(entry) for entry in bin_dir_names(os_name))
+
+
+def find_binary(name: str) -> str | None:
+    """`which`, then the usual install directories.
+
+    Kept separate from `which` on purpose: `which` answers "is this on PATH", which is
+    what a doctor row about PATH should report, while this answers "can we run it",
+    which is what a launcher-started process needs. Returns an absolute path.
+    """
+    found = which(name)
+    if found:
+        return found
+    suffixes = EXECUTABLE_SUFFIXES if detect_os() == "windows" else ("",)
+    for directory in bin_dirs():
+        for suffix in suffixes:
+            candidate = directory / f"{name}{suffix}"
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate)
+    return None
+
+
+def path_prefix(os_name: str | None = None, *, home: str | None = None) -> str:
+    """The directories a generated launcher prepends to PATH, in order.
+
+    `home` replaces the `~` prefix verbatim, so a script can carry `$HOME` or
+    `%USERPROFILE%` rather than this machine's expanded path.
+    """
+    target = normalize(os_name) if os_name else detect_os()
+    separator = ";" if target == "windows" else ":"
+    entries: list[str] = []
+    for name in bin_dir_names(target):
+        if name.startswith("~") and home:
+            entries.append(home + name[1:])
+        else:
+            entries.append(str(expand(name)) if name.startswith("~") else name)
+    return separator.join(entries)
+
+
 def scheduler_for(os_name: str | None = None) -> str:
     return SCHEDULERS[normalize(os_name) if os_name else detect_os()]
 

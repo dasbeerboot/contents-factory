@@ -66,6 +66,20 @@ first thing now. The tone answer writes `persona.md`, `writer_rules.md` and `bra
 reference, the draft (keep it / another / one line of correction), and when to post.
 Format and platform are chosen by the CLI from the profile. Do not ask about them.
 
+## The phone, if it is set up
+
+When `factory.toml` has `review = "telegram"` and a bot is actually wired up, the CLI
+mirrors the draft to the phone by itself at the draft step, and sends the queued item
+with its three buttons afterwards. You do nothing for this.
+
+- Do not run a telegram command yourself to "also send it". `next` already did.
+- The phone is not an entrance. A question is never asked there.
+- Either end can answer the draft question, and **the first answer wins**. When the
+  phone got there first, `answer` tells you so and your answer is dropped; read that
+  line out and fetch the next question instead of arguing with it.
+- A correction from the phone comes back as a new draft on the next `next`. Say what
+  changed, show the new draft, and carry on.
+
 ## When something fails
 
 ```sh

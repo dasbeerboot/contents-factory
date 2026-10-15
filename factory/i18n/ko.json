@@ -251,5 +251,12 @@
   "remote.os_unsupported": "{agent} 원격제어는 이 OS({os})를 공식 지원하지 않는다. 등록은 했지만 폰에서 안 보일 수 있다.",
   "remote.sleep": "PC가 잠들면 폰에서 안 붙는다. 잠자기를 끄자. {command}",
   "install.sleep.macos": "잠자기 설정 창을 연다. 디스플레이가 꺼져 있을 때 자동 잠자기 방지를 켜라.",
-  "install.sleep.windows": "잠자기를 끄려면 PowerShell에서 powercfg /change standby-timeout-ac 0 을 실행해라."
+  "install.sleep.windows": "잠자기를 끄려면 PowerShell에서 powercfg /change standby-timeout-ac 0 을 실행해라.",
+  "telegram.preview.draft_header": "{profile} 가 {platform} 에 올릴 초안이에요 ({kind}). 올릴지 말지는 큐에 들어간 뒤에 버튼으로 물어봅니다.",
+  "wizard.phone.sent": "폰으로도 보냈어요.",
+  "wizard.phone.failed": "폰 전송은 실패했어요 ({code}). 터미널에서 계속하면 됩니다.",
+  "wizard.phone.answered_ok": "폰에서 먼저 올리기를 눌렀어요. 그 답을 씁니다.",
+  "wizard.phone.answered_no": "폰에서 먼저 거절했어요. 다시 만들게요.",
+  "wizard.phone.answered_edit": "폰에서 먼저 고칠 내용을 보냈어요: {text}",
+  "wizard.phone.already_answered": "이미 폰에서 답이 와서 그걸 썼어요. 이번 답은 넘깁니다."
 }

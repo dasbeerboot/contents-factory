@@ -146,3 +146,25 @@ def test_cli_launcher_create_dry_run_prints_the_script(
     out = capsys.readouterr().out
     assert "chcp 65001" in out and "run factory start" in out
     assert list(desktop.iterdir()) == []
+
+
+def test_scripts_prepend_the_usual_bin_directories_to_path(desktop: Path) -> None:
+    """A double-clicked launcher inherits a PATH that never sourced a profile, so uv,
+    the agent, node and ffmpeg are all on disk and invisible. The script fixes PATH
+    once instead of every downstream command guessing."""
+    body = launcher.script(repo=Path("/opt/contents-factory"), os_name="macos")
+    assert 'PATH="$HOME/.local/bin:' in body
+    assert "export PATH" in body
+    assert "/opt/homebrew/bin" in body
+    # The PATH line carries $HOME, not this machine's expanded home, so the same
+    # script works for another account. (The uv fallback is still an absolute path:
+    # it is a recorded location, not a lookup.)
+    path_line = next(line for line in body.splitlines() if line.startswith('PATH='))
+    assert str(Path.home()) not in path_line
+
+
+def test_the_batch_path_line_stays_ascii_for_a_korean_account(desktop: Path) -> None:
+    body = launcher.script(repo=Path(r"C:\cf"), os_name="windows")
+    assert r"%USERPROFILE%\.local\bin" in body
+    assert r"%USERPROFILE%\AppData\Roaming\npm" in body
+    assert body.isascii(), "cmd.exe reads this in the console codepage, not UTF-8"

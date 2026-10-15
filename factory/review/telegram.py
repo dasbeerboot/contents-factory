@@ -92,10 +92,14 @@ def header(item: QueueItem, *, lang: str = "en", reduced: bool = False) -> str:
     return line
 
 
+def pre(text: str) -> str:
+    """Text in a <pre> block so hooks, line breaks and spacing survive the phone."""
+    stripped = (text or "").strip()
+    return f"<pre>{html.escape(stripped)}</pre>" if stripped else ""
+
+
 def body(item: QueueItem) -> str:
-    """The post text in a <pre> block so hooks, line breaks and spacing survive."""
-    text = (item.text or "").strip()
-    return f"<pre>{html.escape(text)}</pre>" if text else ""
+    return pre(item.text or "")
 
 
 def caption(item: QueueItem, *, lang: str = "en", reduced: bool = False,
@@ -207,4 +211,84 @@ def send_preview(item: QueueItem, *, client: api.Client, chat_id: str,
         if isinstance(result, dict) and result.get("message_id") is not None:
             sent.append(int(result["message_id"]))
     return {"item": item.id, "reduced": reduced, "message_ids": sent,
+            "methods": [payload.method for payload in built.payloads]}
+
+
+@dataclass(frozen=True)
+class Draft:
+    """A made thing that is not queued yet: what the wizard shows at the draft step.
+
+    No buttons ride on this. There is no queue item to approve, and a button whose
+    `callback_data` named a brief would be a second way to publish — the whole point of
+    this channel is that it has exactly one.
+    """
+
+    ref: str
+    kind: str = "text"
+    profile: str = ""
+    platform: str = ""
+    text: str = ""
+    media: Path | None = None
+    note: str = ""
+
+
+def draft_header(draft: Draft, *, lang: str = "en", reduced: bool = False) -> str:
+    translate = i18n.Translator(lang)
+    line = translate("telegram.preview.draft_header", profile=draft.profile or "-",
+                     platform=draft.platform or "-", kind=draft.kind, ref=draft.ref)
+    if draft.note:
+        line = f"{line}\n{draft.note}"
+    if reduced:
+        line = f"{line}\n{translate('telegram.preview.reduced')}"
+    return line
+
+
+def build_draft(draft: Draft, *, chat_id: str, lang: str = "en",
+                source: Path | None = None, reduced: bool = False) -> Preview:
+    """Payloads for a pre-queue draft. Same media rules as an item, no reply_markup."""
+    head = draft_header(draft, lang=lang, reduced=reduced)
+    file_path = source if source is not None else draft.media
+    if draft.kind == "text" or file_path is None or not Path(file_path).is_file():
+        text = f"{head}\n{pre(draft.text)}".strip()
+        return Preview([Payload("sendMessage",
+                                {"chat_id": chat_id, "text": text[:api.TEXT_MAX],
+                                 "parse_mode": "HTML",
+                                 "disable_web_page_preview": True})])
+    path = Path(file_path)
+    shared: dict[str, object] = {"chat_id": chat_id, "caption": head[:api.CAPTION_MAX],
+                                 "parse_mode": "HTML"}
+    size = path.stat().st_size
+    if draft.kind == "video":
+        payload = Payload("sendVideo",
+                          {**shared, "width": VIDEO_WIDTH, "height": VIDEO_HEIGHT,
+                           "supports_streaming": True}, file=path, field="video")
+    elif size >= api.PHOTO_MAX:
+        payload = Payload("sendDocument", shared, file=path, field="document")
+    else:
+        payload = Payload("sendPhoto", shared, file=path, field="photo")
+    return Preview([payload], reduced=reduced)
+
+
+def send_draft(draft: Draft, *, client: api.Client, chat_id: str,
+               lang: str = "en") -> dict[str, object]:
+    """Show a draft on the phone. Nothing here changes queue state."""
+    chat = str(chat_id or "").strip()
+    if not chat:
+        raise FactoryError("TELEGRAM_CHAT_MISSING", draft.ref)
+    source = draft.media
+    reduced = False
+    if draft.kind == "video" and source is not None and Path(source).is_file():
+        if Path(source).stat().st_size >= api.UPLOAD_MAX:
+            source = encode_preview(Path(source))
+            reduced = True
+            if source.stat().st_size >= api.UPLOAD_MAX:
+                raise FactoryError("TELEGRAM_PREVIEW_TOO_LARGE", draft.ref)
+    built = build_draft(draft, chat_id=chat, lang=lang, source=source, reduced=reduced)
+    sent: list[int] = []
+    for payload in built.payloads:
+        response = client.send(payload.method, payload.params, payload.attachment())
+        result = response.get("result")
+        if isinstance(result, dict) and result.get("message_id") is not None:
+            sent.append(int(result["message_id"]))
+    return {"ref": draft.ref, "reduced": reduced, "message_ids": sent,
             "methods": [payload.method for payload in built.payloads]}

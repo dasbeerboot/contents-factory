@@ -497,3 +497,142 @@ def test_gate_failures_come_back_as_codes_not_scraped_from_a_table(
     assert "CHARS_OVER" in gates.first_failure()
     assert gates.table and "FAIL" not in gates.table
     assert any("--json" in command for command in result.commands())
+
+
+# --- the phone, wired into the make flow ---------------------------------------
+
+def wire_telegram(home: Path, monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    """Make `telegram_live` true and record the previews instead of sending them."""
+    sent: list[list[str]] = []
+
+    def fake_preview_draft(config, *, brief_id, output=0, result):
+        sent.append(["draft", brief_id])
+        result.ran.append(apply.Ran(("telegram", "preview", "--brief", brief_id), 0))
+        return ""
+
+    def fake_preview_item(config, *, item_id, result):
+        sent.append(["item", item_id])
+        result.ran.append(apply.Ran(("telegram", "preview", "--item", item_id), 0))
+        return ""
+
+    monkeypatch.setattr(apply, "telegram_live", lambda config: True)
+    monkeypatch.setattr(apply, "preview_draft", fake_preview_draft)
+    monkeypatch.setattr(apply, "preview_item", fake_preview_item)
+    return sent
+
+
+def test_telegram_review_mirrors_the_draft_and_then_the_queued_item(
+        isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    sent = wire_telegram(isolated_home, monkeypatch)
+    config = config_for(isolated_home, review="telegram")
+    start_make(config)
+    answer(config, "what", "text")
+    answer(config, "topic", "one cached header cost three days")
+    engine.skip(config)
+    shown = ask(config)
+    assert sent[0][0] == "draft", "the draft goes to the phone at the draft step"
+    assert shown["phone"]
+    answer(config, "draft", "ok")
+    result = answer(config, "when", "next")
+    assert sent[1][0] == "item", "the buttons ride on the queued item"
+    assert sent[1][1] == result["notes"]["item"]
+
+
+def test_a_terminal_only_home_never_touches_the_phone(
+        isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    sent = wire_telegram(isolated_home, monkeypatch)
+    monkeypatch.setattr(apply, "telegram_live", lambda config: False)
+    config = config_for(isolated_home, review="terminal")
+    start_make(config)
+    answer(config, "what", "text")
+    answer(config, "topic", "a quiet terminal run")
+    engine.skip(config)
+    shown = ask(config)
+    assert sent == []
+    assert "phone" not in shown
+
+
+def test_telegram_live_needs_both_the_channel_and_a_real_chat(
+        isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from factory.telegram import setup as telegram_setup
+    from factory.telegram import state as telegram_state
+
+    assert apply.telegram_live(config_for(isolated_home, review="telegram")) is False
+    telegram_setup.save_token(isolated_home, "_example", "123456:" + "a" * 35)
+    assert apply.telegram_live(config_for(isolated_home, review="telegram")) is False
+    telegram_state.save_chat(isolated_home, "99887766")
+    assert apply.telegram_live(config_for(isolated_home, review="telegram")) is True
+    # The channel still decides: a bot plus review=terminal asked not to be buzzed.
+    assert apply.telegram_live(config_for(isolated_home, review="terminal")) is False
+
+
+def queue_one(config: Config, isolated_home: Path) -> str:
+    start_make(config)
+    answer(config, "what", "text")
+    answer(config, "topic", "three tools at once")
+    engine.skip(config)
+    ask(config)
+    answer(config, "draft", "ok")
+    return answer(config, "when", "next")["notes"]["item"]
+
+
+def test_a_phone_correction_reopens_the_draft_and_is_consumed_once(
+        isolated_home: Path) -> None:
+    config = config_for(isolated_home)
+    item_id = queue_one(config, isolated_home)
+    store = QueueStore(isolated_home)
+    store.unapprove(item_id)
+    store.disarm(item_id)
+    store.set_extra(item_id, apply.PHONE_EDIT_KEY, "cut the last line")
+    brief_id = engine.status(config)["flows"]["make"]["notes"]["brief"]
+
+    reopened = ask(config)
+    assert reopened["id"] == "draft", "a correction from the phone asks the draft again"
+    assert "cut the last line" in reopened["phone"]
+    brief = json.loads((isolated_home / "briefs" / f"{brief_id}.json")
+                       .read_text(encoding="utf-8"))
+    assert brief["prompt_revisions"] == 1
+    assert "cut the last line" in brief["prompt_final"]
+    # Consumed: the same correction must not be applied again on the next next.
+    assert store.get(item_id).extra[apply.PHONE_EDIT_KEY] == ""
+    answer(config, "draft", "ok")
+    assert ask(config)["id"] == "when"
+
+
+def test_a_phone_rejection_asks_for_another_draft(isolated_home: Path) -> None:
+    config = config_for(isolated_home)
+    item_id = queue_one(config, isolated_home)
+    store = QueueStore(isolated_home)
+    store.unapprove(item_id)
+    store.disarm(item_id)
+    store.record_error(item_id, apply.PHONE_REJECT_CODE)
+    assert ask(config)["id"] == "draft"
+
+
+def test_whichever_answer_lands_first_is_the_one_used(isolated_home: Path) -> None:
+    """Both ends can answer the draft question. Running both would make two decisions
+    out of one draft, so the second is dropped and said out loud."""
+    config = config_for(isolated_home)
+    item_id = queue_one(config, isolated_home)
+    store = QueueStore(isolated_home)
+    store.unapprove(item_id)
+    store.disarm(item_id)
+    store.set_extra(item_id, apply.PHONE_EDIT_KEY, "make the hook shorter")
+    # The terminal answers the same round without fetching the question first.
+    result = answer(config, "draft", "이대로 좋아요")
+    assert result["ok"] is True
+    assert "이미 폰에서" in result["saved"] or "phone already" in result["saved"].lower()
+    # The phone's correction is what got applied, so the draft is asked again.
+    assert ask(config)["id"] == "draft"
+
+
+def test_a_phone_approval_is_not_mistaken_for_the_wizards_own_arming(
+        isolated_home: Path) -> None:
+    config = config_for(isolated_home)
+    item_id = queue_one(config, isolated_home)
+    item = QueueStore(isolated_home).get(item_id)
+    # simple mode armed it with the user's words, not from a chat.
+    assert item.armed and not str(item.arm_reason).startswith(apply.PHONE_ARM_PREFIX)
+    assert apply.phone_answer(config, item_id=item_id) == ("", "")
+    QueueStore(isolated_home).arm(item_id, f"{apply.PHONE_ARM_PREFIX}99887766")
+    assert apply.phone_answer(config, item_id=item_id) == ("ok", "")

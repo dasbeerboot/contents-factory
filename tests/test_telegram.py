@@ -358,6 +358,19 @@ def test_fix_it_records_the_next_typed_line_for_the_wizard(
     assert state.pending_edit(isolated_home, CHAT) == ""
 
 
+def test_a_correction_also_takes_an_armed_item_back_off_the_slot(
+        isolated_home: Path) -> None:
+    """Without this the slot publishes the very text the owner asked to change."""
+    item = queued(isolated_home, approved=True, armed=True,
+                  arm_reason="owner approved in chat")
+    serve, _transport = loop(isolated_home, simple=True)
+    assert serve.handle_update(callback(item.id, "ed")) == "EDIT_WAIT"
+    assert serve.handle_update(typed("cut the last line")) == "EDIT_SAVED"
+    stored = QueueStore(isolated_home).get(item.id)
+    assert stored.extra["edit_request"] == "cut the last line"
+    assert (stored.approved, stored.armed) == (False, False)
+
+
 def test_a_typed_line_without_a_pending_edit_does_nothing(
         isolated_home: Path) -> None:
     queued(isolated_home)
@@ -785,3 +798,83 @@ def test_no_alert_is_attempted_without_a_chat(isolated_home: Path,
                         lambda *args, **kwargs: pytest.fail("no chat, no send"))
     report = tick.TickReport(errors=[("q_20261015120000_ab12", "HTTP_500")])
     assert telegram_cli.notify_tick(Config(home=str(isolated_home)), report) == 0
+
+
+# ---------- a draft, before anything is queued ----------
+
+def test_a_draft_preview_carries_no_buttons() -> None:
+    """There is no queue item yet, so there is nothing to approve. A button whose
+    callback named a brief would be a second way to publish."""
+    draft = channel.Draft(ref="b_20261015120000_ab12", kind="text", profile="brand",
+                          platform="threads", text="one cached header, three days")
+    built = channel.build_draft(draft, chat_id="42", lang="ko")
+    assert len(built.payloads) == 1
+    params = built.payloads[0].params
+    assert built.payloads[0].method == "sendMessage"
+    assert "reply_markup" not in params
+    assert "<pre>one cached header, three days</pre>" in str(params["text"])
+    assert "brand" in str(params["text"]) and "threads" in str(params["text"])
+
+
+def test_a_draft_video_still_declares_the_player_box(tmp_path: Path) -> None:
+    clip = tmp_path / "final.mp4"
+    clip.write_bytes(b"0" * 2048)
+    draft = channel.Draft(ref="b_20261015120000_ab12", kind="video", profile="brand",
+                          platform="tiktok", media=clip)
+    payload = channel.build_draft(draft, chat_id="42").payloads[0]
+    assert payload.method == "sendVideo"
+    assert payload.params["supports_streaming"] is True
+    assert (payload.params["width"], payload.params["height"]) == (channel.VIDEO_WIDTH,
+                                                                   channel.VIDEO_HEIGHT)
+    assert "reply_markup" not in payload.params
+
+
+def test_cli_preview_brief_dry_run_shows_the_draft(
+        isolated_home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from factory.cli import main
+
+    assert main(["brief", "new", "--kind", "text", "--format", "threads_post",
+                 "--profile", "_example"]) == 0
+    brief_id = json.loads(capsys.readouterr().out)["brief"]
+    path = isolated_home / "briefs" / f"{brief_id}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["outputs"] = [{"text": "a draft line", "gates": {}, "chosen": False}]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert main(["telegram", "preview", "--brief", brief_id, "--dry-run"]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["payloads"][0]["method"] == "sendMessage"
+    assert "a draft line" in str(plan["payloads"][0]["params"]["text"])
+    assert "reply_markup" not in plan["payloads"][0]["params"]
+
+
+def test_cli_preview_needs_an_item_or_a_brief(isolated_home: Path) -> None:
+    from factory.cli import main
+
+    assert main(["telegram", "preview"]) == 3
+
+
+def test_doctor_reports_the_phone_rows_without_ever_blocking(
+        isolated_home: Path) -> None:
+    """Both are conveniences. A missing one must not stop `factory start`."""
+    from factory import doctor
+
+    data = doctor.report(Config(home=str(isolated_home), review="telegram"),
+                         token_runner=lambda command, timeout: "oat_abcdefghijklmno",
+                         scheduler_status=lambda: {"installed": False})
+    assert data["telegram"]["ready"] is False
+    assert data["telegram"]["review"] == "telegram"
+    assert data["telegram"]["code"] == "TELEGRAM_CHAT_MISSING"
+    assert "installed" in data["remote"]
+    rendered = doctor.render(data)
+    assert "telegram" in rendered and "phone remote" in rendered
+    assert "factory telegram setup" in rendered
+    assert not [row for row in doctor.blockers(data)
+                if "telegram" in row.lower() or "remote" in row.lower()]
+    botsetup.save_token(isolated_home, "_example", "123456:" + "a" * 35)
+    state.save_chat(isolated_home, "99887766")
+    again = doctor.report(Config(home=str(isolated_home), review="telegram"),
+                          token_runner=lambda command, timeout: "oat_abcdefghijklmno",
+                          scheduler_status=lambda: {"installed": False})
+    assert again["telegram"]["ready"] is True
+    assert again["telegram"]["code"] == ""
+    assert "123456" not in doctor.render(again), "no token value in a doctor table"

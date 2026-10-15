@@ -80,7 +80,52 @@ def report(config: Config, *,
                              "fix": "" if logged_in else higgsfield.login_hint()},
         "profiles": profiles,
         "scheduler": _scheduler(runner, scheduler_status),
+        "telegram": _telegram(config),
+        "remote": _remote(config),
     }
+
+
+def _telegram(config: Config) -> dict[str, Any]:
+    """Is the phone channel wired up. Never blocking: it is a convenience, and a
+    missing one must not stop `factory start` from opening the wizard."""
+    from .credentials import load_profile_env
+    from .telegram import setup as telegram_setup
+
+    home = config.home_path
+    try:
+        token = str(load_profile_env(home, config.default_profile).get(
+            telegram_setup.TOKEN_KEY, "")).strip()
+        state = telegram_setup.status(home, token)
+    except Exception:  # noqa: BLE001 - a doctor row never raises
+        return {"ready": False, "token": False, "chat": False, "review": config.review,
+                "code": "TELEGRAM_STATUS_UNREADABLE"}
+    ready = bool(state.get("token")) and bool(state.get("chat_id"))
+    return {"ready": ready, "token": bool(state.get("token")),
+            "chat": bool(state.get("chat_id")), "review": config.review,
+            "pending_edits": len(state.get("pending_edits") or []),
+            # Only a contradiction is worth a word: review=telegram with nothing wired
+            # up means every preview silently goes nowhere.
+            "code": "" if ready or config.review != "telegram"
+            else "TELEGRAM_CHAT_MISSING"}
+
+
+def _remote(config: Config) -> dict[str, Any]:
+    """Is the phone remote control registered on this PC. Also never blocking."""
+    from . import remote as remote_module
+
+    try:
+        agents = remote_module.detect_agents()
+        agent = agents[0] if agents else "claude"
+        state = remote_module.status(agent=agent, runner="auto", repo=repo_root(),
+                                     os_name=config.os, home=config.home_path)
+    except Exception:  # noqa: BLE001 - a doctor row never raises
+        return {"installed": False, "agent": "", "runner": "",
+                "code": "REMOTE_STATUS_UNREADABLE"}
+    return {"installed": bool(state.get("installed")), "agent": agent,
+            "runner": str(state.get("runner") or ""),
+            "trusted": bool(state.get("trusted")),
+            "agents": agents,
+            "code": "" if state.get("installed") else "REMOTE_NOT_INSTALLED"}
 
 
 def _scheduler(runner: str,
@@ -130,6 +175,30 @@ def render(data: dict[str, Any]) -> str:
     scheduler = data["scheduler"]
     rows.append(("scheduler", str(scheduler.get("runner")),
                  "installed" if scheduler.get("installed") else "not installed"))
+    telegram = data.get("telegram") or {}
+    rows.append(("telegram",
+                 "ready" if telegram.get("ready")
+                 else ("unreadable" if telegram.get("code", "").endswith("UNREADABLE")
+                       else "not set up"),
+                 f"review={telegram.get('review', '-')}"
+                 + (f"  pending edits={telegram['pending_edits']}"
+                    if telegram.get("pending_edits") else "")
+                 + ("  review=telegram but nothing is wired up: "
+                    "factory telegram setup"
+                    if telegram.get("code") == "TELEGRAM_CHAT_MISSING" else "")))
+    phone = data.get("remote") or {}
+    detail = f"{phone.get('agent') or '-'} via {phone.get('runner') or '-'}"
+    if phone.get("installed") and not phone.get("trusted"):
+        # Registered but the agent will refuse to open the folder, which looks like
+        # "installed and nothing connects" on the phone.
+        detail += "  workspace not trusted yet"
+    if not phone.get("installed"):
+        detail += "  factory remote install"
+    rows.append(("phone remote",
+                 "installed" if phone.get("installed")
+                 else ("unreadable" if phone.get("code", "").endswith("UNREADABLE")
+                       else "not installed"),
+                 detail))
     rows.append(("profiles", str(len(data["profiles"])),
                  ", ".join(data["profiles"][:6])))
     width = max(len(name) for name, _value, _detail in rows)

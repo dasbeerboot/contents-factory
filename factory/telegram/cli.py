@@ -15,6 +15,7 @@ from ..config import Config
 from ..credentials import credentials_path, load_profile_env
 from ..errors import FactoryError
 from ..queue.store import QueueStore
+from ..spec.brief import load_brief
 from ..review import telegram as review_channel
 from ..scheduler.tick import TickReport
 from . import daemon, notify
@@ -53,8 +54,13 @@ def build_parser(parent: argparse._SubParsersAction) -> None:
                              help="print the payload, send nothing")
 
     preview_parser = actions.add_parser(
-        "preview", help="send one queue item with the three confirm buttons")
-    preview_parser.add_argument("--item", required=True)
+        "preview", help="send one queue item with the three confirm buttons, or a "
+                        "not-yet-queued brief draft with none")
+    preview_parser.add_argument("--item", help="queue id; carries the three buttons")
+    preview_parser.add_argument("--brief", help="brief id; a draft, no buttons, "
+                                               "because there is nothing to approve yet")
+    preview_parser.add_argument("--output", type=int, default=0,
+                                help="which brief output, default the first")
     preview_parser.add_argument("--profile")
     preview_parser.add_argument("--dry-run", action="store_true",
                                 help="print the payloads, send nothing")
@@ -189,7 +195,27 @@ def _test(config: Config, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _draft_of(config: Config, args: argparse.Namespace) -> review_channel.Draft:
+    """A brief output, shaped for the phone. The platform comes from the brief."""
+    from pathlib import Path
+
+    brief = load_brief(config.home_path, args.brief)
+    index = max(0, int(getattr(args, "output", 0) or 0))
+    if index >= len(brief.outputs):
+        raise FactoryError("BRIEF_OUTPUT_MISSING", str(index))
+    output = brief.outputs[index]
+    media_path = Path(output.path).expanduser() if output.path else None
+    return review_channel.Draft(
+        ref=brief.id, kind=brief.kind, profile=brief.profile,
+        platform=(brief.platforms[0] if brief.platforms else ""),
+        text=output.text or "", media=media_path)
+
+
 def _preview(config: Config, args: argparse.Namespace) -> int:
+    if getattr(args, "brief", None):
+        return _preview_draft(config, args)
+    if not getattr(args, "item", None):
+        raise FactoryError("ITEM_REQUIRED", "preview")
     store = QueueStore(config.home_path)
     item = store.get(args.item)
     if args.dry_run:
@@ -199,6 +225,20 @@ def _preview(config: Config, args: argparse.Namespace) -> int:
         return EXIT_OK
     result = review_channel.send_preview(
         item, client=_client(config, _profile(config, args)),
+        chat_id=_chat(config), lang=config.ui_lang)
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    return EXIT_OK
+
+
+def _preview_draft(config: Config, args: argparse.Namespace) -> int:
+    draft = _draft_of(config, args)
+    chat = state.chat_id(config.home_path) or "-"
+    if args.dry_run:
+        built = review_channel.build_draft(draft, chat_id=chat, lang=config.ui_lang)
+        print(json.dumps(built.as_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+        return EXIT_OK
+    result = review_channel.send_draft(
+        draft, client=_client(config, _profile(config, args)),
         chat_id=_chat(config), lang=config.ui_lang)
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return EXIT_OK

@@ -292,6 +292,29 @@ factory wizard reset [--flow setup|make]
   따로다. **어느 쪽이든 큐 적재는 발행이 아니고, 발행은 슬롯이 한다.**
 - 상태는 `~/.contents-factory/state/wizard.json` 하나이고 `factory wizard` 만 쓴다.
 
+### 폰으로도 보여주기 / The phone, when it is wired up
+
+`factory.toml` 이 `review = "telegram"` 이고 봇 토큰과 chat 이 실제로 저장돼 있으면,
+위저드가 **초안 제시 단계에서 자동으로 폰에도 보낸다.**
+
+- 초안 단계 = `factory telegram preview --brief b_... [--output 0]` (버튼 없음 — 아직
+  큐에 없어서 승인할 대상이 없다)
+- 큐 적재 직후 = `factory telegram preview --item q_...` (올리기·거절·고쳐줘 버튼 3개)
+- 둘 중 하나라도 실패하면 **조용히 터미널만** 쓴다. 폰이 안 터져도 플로우는 안 끊긴다.
+- 텔레그램 미설정(`review = "terminal"` 또는 토큰·chat 없음)이면 아무것도 안 보낸다.
+
+**답은 먼저 온 쪽을 쓴다.** 같은 초안에 터미널과 폰이 둘 다 답하면 먼저 도착한 답으로
+결정하고 나머지는 버리면서 그렇게 말한다.
+
+| 폰에서 누른 것 | 벌어지는 일 |
+|---|---|
+| 올리기 | `queue approve` (+ `simple` 이면 `arm`, 근거는 `telegram:<chat>`) |
+| 거절 | `unapprove` + `disarm` + `last_error=TELEGRAM_REJECTED` → 위저드가 초안을 다시 만든다 |
+| 고쳐줘 → 한 줄 | `extra.edit_request` 기록 + **즉시 승인·무장 해제**. 다음 `factory wizard next` 가 그 한 줄을 `factory brief revise` 로 소비하고 초안을 다시 만든다 |
+
+`extra.edit_request` 는 소비하면 즉시 비운다 — 같은 수정이 두 번 반영되면 프롬프트가
+중복 누적된다. 발행된 항목은 손대지 않는다(`set_extra` 가 거부).
+
 ### 오류는 코드 하나당 할 일 하나 / Error dictionary
 
 ```sh
@@ -299,9 +322,20 @@ factory explain HIGGSFIELD_LOGIN_REQUIRED
 factory explain --list                      # 사전에 있는 전체 코드
 ```
 
-`factory/i18n/errors.{ko,en}.json` 에 코드별 `{human, action, command}` 가 있다 (286개,
-`FactoryError` 로 던지는 코드 전수 + tick 판정·게이트 위반·HTTP 코드). 위저드와 발행 실패
+`factory/i18n/errors.{ko,en}.json` 에 코드별 `{human, action, command}` 가 있다 (314개,
+`FactoryError` 로 던지는 코드 전수 + tick 판정·게이트 위반·HTTP·런처·원격제어·텔레그램). 위저드와 발행 실패
 경로가 같은 사전을 읽고, 실패한 명령은 **코드 한 줄 + 사람 말 한 줄**을 같이 낸다.
+
+### 런처에서 띄울 때 PATH / Launcher PATH
+
+바탕화면 런처는 더블클릭으로 실행되므로 프로필(`~/.zshrc` 등)을 거치지 않은 PATH 를
+물려받는다. `uv`·`claude`·`node`·`ffmpeg` 가 디스크에 있는데도 안 보이는 상태다.
+
+- 생성된 런처가 `~/.local/bin`·`/opt/homebrew/bin`(윈도우는 `%USERPROFILE%\AppData\
+  Roaming\npm` 등)을 **PATH 앞에 붙인다**. `.bat` 는 ASCII 유지 — 계정명이 한글이어도
+  깨지지 않게 `%USERPROFILE%` 를 그대로 쓴다.
+- 그래도 `factory start` 는 에이전트를 `osinfo.find_binary` 로 한 번 더 찾고,
+  실행은 **절대경로**로 한다(출력되는 명령은 짧은 이름 그대로).
 
 ## 🚨 상태파일은 CLI로만 / State is CLI-only
 

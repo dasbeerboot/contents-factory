@@ -1,8 +1,12 @@
 # contents-factory TODO
 
-> 갱신 2026-10-14. 근거 표기: ✅(파일) / 🟡(부분) / ❌(미구현)
+> 갱신 2026-10-15. 근거 표기: ✅(파일) / 🟡(부분) / ❌(미구현)
 
 ## 액션플랜 (주원 손)
+- [ ] ❌ 한 줄 설치·런처·폰 원격제어·텔레그램 **실기 1회** (10/15 코드만, 실행 0회):
+      `bash install.sh --dry-run` → 실설치 → 바탕화면 더블클릭 → `factory telegram setup`
+      (BotFather 토큰·/start) → 드롭 1건 미리보기·버튼 왕복 → `factory remote install`
+      후 폰 Claude 앱에서 환경 보이는지
 - [ ] ❌ Windows PC에서 `uv run factory init --os windows` → `factory doctor` → `schedule install` 실기 검증 (10/15 코드만, 실기 0회)
 - [ ] ❌ 네이버 playwright 백엔드 첫 실발행 (테스트 블로그, 입회 필수)
 - [ ] ❌ saju-website: `src/app/api/threads/exchange/route.ts`(미커밋, yearmap-v1 작업트리) + /radar 글쓰기 박스(`/tmp/meta-review/radar-publish-spec.md`) → 별도 opus 4.8 세션에서 tsc·배포·master 머지
@@ -110,10 +114,26 @@
 - [x] ✅ `CLAUDE.md` = `AGENTS.md` (동일 59줄, 한영 병기) + `.claude/skills/wizard/`,
       기존 스킬 6종 머리에 "컴맹이면 /wizard" 1줄
 - [x] ✅ pytest 599 passed (이전 399 → +200)
-- [ ] ❌ `install.sh` / `install.ps1` + 바탕화면 런처 (.command/.bat) — PLAN §9.1
-- [ ] ❌ `factory remote install` (launchd/Task Scheduler KeepAlive) — PLAN §9.8
-- [ ] ❌ 텔레그램 미리보기·컨펌 봇 (`factory/telegram/`) — 별도 세션 진행 중
+- [x] ✅ `install.sh` / `install.ps1` + 바탕화면 런처 (`factory/launcher.py`,
+      `factory launcher create|remove|status`). 런처가 PATH 앞에 표준 bin 디렉토리를
+      붙인다 — 더블클릭 실행은 프로필을 안 거쳐서 uv·claude·node 가 안 보였다.
+      `.bat` 는 ASCII 유지(`%USERPROFILE%`), 한글 계정명도 안 깨진다
+- [x] ✅ `factory remote install|remove|status` (`factory/remote.py`) — 폰 원격제어를
+      launchd/schtasks/systemd/cron 에 상시 등록. 워크스페이스 신뢰 없으면 거절
+- [x] ✅ 텔레그램 미리보기·컨펌 (`factory/telegram/`, `factory/review/telegram.py`).
+      입구 아님 — 미리보기 + 버튼 3개 + 장애·일일요약만
+- [x] ✅ 위저드 ↔ 텔레그램 배선 (`factory/wizard/{engine,apply}.py`):
+      `review = "telegram"` + 토큰·chat 있을 때만 초안 단계에서 `telegram preview
+      --brief`(버튼 없음), 큐 적재 직후 `--item`(버튼 3개). 미설정이면 조용히 터미널만.
+      터미널·폰 중 **먼저 온 답 채택**, `extra.edit_request` 는 `brief revise` 로 소비 후
+      즉시 비움. 고쳐줘는 serve 가 그 자리에서 승인·무장을 해제한다(안 하면 슬롯이
+      고치라던 원문을 발행)
+- [x] ✅ `factory doctor` 에 telegram·phone remote 행 (둘 다 blocking 아님)
 - [ ] ❌ 지인 1명 실측: `factory start` → setup 7문항 → 첫 글 발행까지 혼자 가는지
+- [ ] ❌ **실기 미검증 (전부 모킹·드라이런만)**:
+      ① `install.sh`/`install.ps1` 실행 ② 바탕화면 런처 더블클릭 ③ `factory remote
+      install` 후 폰 앱 접속 ④ 텔레그램 실전송(봇 생성·버튼 누름·고쳐줘 왕복)
+      ⑤ 윈도우 호스트 전반
 
 ## P2
 - [x] ✅ 영상 리뷰 sendVideo 인라인 (`factory/review/telegram.py`, 문서첨부 금지 규약 포함)

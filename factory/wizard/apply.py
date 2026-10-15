@@ -364,3 +364,91 @@ def write_template(directory: Path, name: str, intro: str, tone: str) -> list[st
         (directory / filename).write_text(body, encoding="utf-8")
         written.append(filename)
     return sorted(written)
+
+
+# --- the phone, when it is wired up --------------------------------------------
+
+PHONE_EDIT_KEY = "edit_request"
+PHONE_ARM_PREFIX = "telegram:"
+PHONE_REJECT_CODE = "TELEGRAM_REJECTED"
+
+
+def telegram_live(config: Config) -> bool:
+    """`review = "telegram"` and a token and a chat actually exist.
+
+    Both halves matter. A home with `review = "telegram"` and no bot would otherwise
+    make every draft step fail on a send, and a home with a bot but `review =
+    "terminal"` asked not to be buzzed.
+    """
+    if config.review != "telegram":
+        return False
+    from ..credentials import load_profile_env  # noqa: PLC0415 - late, see run_cli
+    from ..telegram import setup as telegram_setup  # noqa: PLC0415
+
+    try:
+        env = load_profile_env(config.home_path, config.default_profile)
+        state = telegram_setup.status(config.home_path,
+                                      str(env.get(telegram_setup.TOKEN_KEY, "")))
+    except Exception:  # noqa: BLE001 - an unreadable phone channel is just "no phone"
+        return False
+    return bool(state.get("token")) and bool(state.get("chat_id"))
+
+
+def preview_draft(config: Config, *, brief_id: str, output: int = 0,
+                  result: Result) -> str:
+    """Show the draft on the phone. Returns "" or the code that stopped it.
+
+    Never raises: the terminal already has the draft, and a phone that is out of
+    signal must not end the flow.
+    """
+    ran = run_cli(["telegram", "preview", "--brief", brief_id,
+                   "--output", str(output)], check=False)
+    result.ran.append(ran)
+    return "" if ran.code == 0 else (ran.error_code() or "TELEGRAM_UNREACHABLE")
+
+
+def preview_item(config: Config, *, item_id: str, result: Result) -> str:
+    """Show the queued item on the phone, with the three buttons. Never raises."""
+    ran = run_cli(["telegram", "preview", "--item", item_id], check=False)
+    result.ran.append(ran)
+    return "" if ran.code == 0 else (ran.error_code() or "TELEGRAM_UNREACHABLE")
+
+
+def phone_answer(config: Config, *, item_id: str) -> tuple[str, str]:
+    """What the phone has already decided about this item: ("", "") when nothing.
+
+    ("fix", text)  a correction was typed
+    ("no", "")     the reject button was pressed
+    ("ok", "")     the publish button was pressed, recognisable by the arm reason
+    """
+    from ..queue.store import QueueStore  # noqa: PLC0415 - late, see run_cli
+
+    try:
+        item = QueueStore(config.home_path).get(item_id)
+    except FactoryError:
+        return "", ""
+    correction = str(item.extra.get(PHONE_EDIT_KEY) or "").strip()
+    if correction:
+        return "fix", correction
+    if item.last_error == PHONE_REJECT_CODE and not item.approved:
+        return "no", ""
+    if item.armed and str(item.arm_reason or "").startswith(PHONE_ARM_PREFIX):
+        return "ok", ""
+    return "", ""
+
+
+def clear_phone_edit(config: Config, *, item_id: str, result: Result) -> bool:
+    """Consume the correction so the same one is not applied twice.
+
+    A published item cannot be edited, so the field stays and the caller stops; that
+    is why this answers with a bool instead of raising.
+    """
+    from ..queue.store import QueueStore  # noqa: PLC0415 - late, see run_cli
+
+    store = QueueStore(config.home_path)
+    try:
+        store.set_extra(item_id, PHONE_EDIT_KEY, "")
+    except FactoryError as error:
+        result.notes["phone_clear_failed"] = error.code
+        return False
+    return True

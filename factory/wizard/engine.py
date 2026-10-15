@@ -106,17 +106,69 @@ def next_question(config: Config, *, dry_run: bool = False) -> dict[str, Any]:
     wizard = state.load(config.home_path)
     flow = flow_of(wizard)
     record = state.record(wizard, flow)
+    phone = apply.Result()
+    if flow == "make":
+        _phone_first(config, record, result=phone)
     question = current(flow, record)
     if question is None:
         record["done"] = True
         state.save(config.home_path, wizard)
         return {"flow": flow, "done": True,
-                "message": i18n.get(f"wizard.done.{flow}", config.ui_lang)}
+                "ran": phone.commands(),
+                "message": record["notes"].pop("phone_note", "")
+                or i18n.get(f"wizard.done.{flow}", config.ui_lang)}
     prepared = _prepare(config, flow, record, question, dry_run=dry_run)
     state.save(config.home_path, wizard)
     payload = prompt_payload(config, flow, record, question)
-    payload["ran"] = prepared.commands()
+    payload["ran"] = phone.commands() + prepared.commands()
+    if record["notes"].get("phone_note"):
+        payload["phone"] = record["notes"].pop("phone_note")
     return payload
+
+
+def _phone_first(config: Config, record: dict[str, Any], *,
+                 result: apply.Result) -> str:
+    """Adopt a Telegram answer when it got here before the terminal one.
+
+    One decision per draft, whoever answers first. The phone cannot press anything
+    until the item is queued, so this only ever fires on a queued item, and the
+    correction is consumed immediately: the same `edit_request` must not be applied
+    twice on the next `next`.
+    """
+    notes = record["notes"]
+    item_id = str(notes.get("item") or "")
+    if not item_id or notes.get("answered_by") == "terminal":
+        return ""
+    answer, text = apply.phone_answer(config, item_id=item_id)
+    if not answer:
+        return ""
+    lang = config.ui_lang
+    if answer == "ok":
+        notes["answered_by"] = "phone"
+        notes["phone_note"] = i18n.get("wizard.phone.answered_ok", lang)
+        return "ok"
+    if answer == "fix" and not apply.clear_phone_edit(config, item_id=item_id,
+                                                      result=result):
+        return ""
+    brief_id = str(notes.get("brief") or "")
+    if answer == "fix" and brief_id:
+        apply.revise_brief(config, brief_id=brief_id, correction=text, result=result)
+        notes["phone_note"] = i18n.get("wizard.phone.answered_edit", lang,
+                                       text=text[:120])
+    else:
+        notes["phone_note"] = i18n.get("wizard.phone.answered_no", lang)
+    # Either way the shown draft is dead, so the draft question comes back with a
+    # freshly generated one and the queue step is asked again.
+    notes["answered_by"] = "phone"
+    for key in ("draft", "gates", "gate_ok", "note", "phone_preview"):
+        notes.pop(key, None)
+    for key in ("draft", "when"):
+        record["answers"].pop(key, None)
+    record["asked"][:] = [entry for entry in record["asked"]
+                          if entry not in {"draft", "when"}]
+    record["done"] = False
+    notes.pop("item", None)
+    return answer
 
 
 def _prepare(config: Config, flow: str, record: dict[str, Any], question: Question, *,
@@ -196,6 +248,28 @@ def _build_draft(config: Config, record: dict[str, Any], *, result: apply.Result
     record["notes"]["draft"] = draft
     record["notes"]["gates"] = gates.table.strip()
     record["notes"]["gate_ok"] = "yes" if gates.ok else "no"
+    record["notes"].pop("answered_by", None)
+    _to_phone(config, record, result=result)
+
+
+def _to_phone(config: Config, record: dict[str, Any], *,
+              result: apply.Result) -> None:
+    """Mirror the draft onto the phone when Telegram is the review channel.
+
+    No buttons here: nothing is queued yet, so there is nothing to approve. The
+    buttons go out with the queued item at the end of the flow.
+    """
+    notes = record["notes"]
+    if notes.get("phone_preview") or not apply.telegram_live(config):
+        return
+    brief_id = str(notes.get("brief") or "")
+    if not brief_id:
+        return
+    code = apply.preview_draft(config, brief_id=brief_id, result=result)
+    notes["phone_preview"] = "sent" if not code else f"failed:{code}"
+    notes["phone_note"] = (i18n.get("wizard.phone.sent", config.ui_lang) if not code
+                           else i18n.get("wizard.phone.failed", config.ui_lang,
+                                         code=code))
 
 
 # --- answer --------------------------------------------------------------------
@@ -205,6 +279,17 @@ def answer_question(config: Config, question_id: str, raw: str, *,
     wizard = state.load(config.home_path)
     flow = flow_of(wizard)
     record = state.record(wizard, flow)
+    if flow == "make":
+        claimed = apply.Result()
+        if _phone_first(config, record, result=claimed) and question_id in {"draft",
+                                                                            "when"}:
+            # The phone answered this round first. Applying this one too would run the
+            # decision twice, so it is dropped and said out loud.
+            state.save(config.home_path, wizard)
+            return {"flow": flow, "id": question_id, "ok": True, "value": "",
+                    "saved": i18n.get("wizard.phone.already_answered", config.ui_lang),
+                    "ran": claimed.commands(), "notes": {},
+                    "message": record["notes"].pop("phone_note", "")}
     question = current(flow, record)
     if question is None:
         raise FactoryError("WIZARD_NO_QUESTION", flow)
@@ -323,6 +408,7 @@ def _guess_kind(config: Config, record: dict[str, Any], topic: str) -> str:
 def _apply_draft_answer(config: Config, record: dict[str, Any], value: str, *,
                         result: apply.Result) -> None:
     notes = record["notes"]
+    notes["answered_by"] = "terminal"
     if value == "ok":
         return
     brief_id = str(notes.get("brief") or "")
@@ -365,6 +451,15 @@ def _queue(config: Config, record: dict[str, Any], value: str, *, result: apply.
     else:
         result.notes["message"] = i18n.get("wizard.queued.expert", config.ui_lang,
                                            item_id=item, platform=platform)
+    # The draft round is over, so a later phone press is a new decision rather than
+    # the loser of a race, and it is allowed to reopen the draft.
+    notes.pop("answered_by", None)
+    if apply.telegram_live(config):
+        code = apply.preview_item(config, item_id=item, result=result)
+        notes["phone_preview"] = "item" if not code else f"failed:{code}"
+        if code:
+            result.notes["phone"] = i18n.get("wizard.phone.failed", config.ui_lang,
+                                             code=code)
     record["done"] = True
 
 

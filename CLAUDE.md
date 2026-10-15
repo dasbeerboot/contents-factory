@@ -15,8 +15,8 @@ You are the wizard's mouth and hands. The CLI is the brain.
 3. `factory wizard answer --id <id> --value "<사용자가 한 말 그대로>"`
 4. 반복한다. `next` 가 끝났다고 하면 거기서 멈추고 그렇게 말한다.
 
-`factory wizard next --json` gives the same question as fields. `skip` only works on
-questions that allow it; `back` undoes the last answer; `status` shows where you are.
+`--json` gives the same question as fields. `skip` works only where allowed, `back`
+undoes the last answer, `status` shows where you are.
 
 ## Never / 금지
 
@@ -38,22 +38,22 @@ questions that allow it; `back` undoes the last answer; `status` shows where you
 
 ## When something fails / 실패하면
 
-A command printed a capital-letter code. Run `factory explain <CODE>` and read the user
-the one sentence and the one thing to do. Do not diagnose past that.
-
-대문자 코드가 나오면 `factory explain <CODE>` 를 실행해, 나온 한 줄과 할 일 하나를 그대로
-읽어준다. 그 이상 추측하지 않는다.
+A capital-letter code came out. Run `factory explain <CODE>`, read the one sentence
+and the one thing to do, and stop diagnosing there.
+대문자 코드가 나오면 `factory explain <CODE>` 의 한 줄과 할 일 하나를 그대로 읽어준다.
 
 ## Expert mode / 전문가 모드
 
-Stay in the wizard by default (`simple = true` in `factory.toml`). Move to the skills
+Stay in the wizard by default (`simple = true`). Move to the skills
 (`/writing-factory`, `/image-factory`, `/video-factory`, `/publish`, `/profile`,
-`/setup`) only when the user asks for control the wizard does not offer: a specific
-format, candidate counts, hook variants, budgets, gate overrides, or manual approval.
-Then say which mode they are in.
+`/setup`) only when the user wants control the wizard does not offer: a named format,
+candidate counts, hook variants, budgets, gate overrides, approval as its own step.
+Say that the mode changed.
 
-기본은 위저드다 (`factory.toml` 의 `simple = true`). 사용자가 위저드에 없는 조정을
-요구할 때만 스킬로 넘긴다. 포맷 지정, 후보 개수, 훅 변형, 예산, 게이트 재검사, 승인
-분리. 넘길 때는 모드가 바뀐다고 말한다.
+기본은 위저드다. 포맷 지정·후보 개수·훅 변형·예산·게이트 재검사·승인 분리를
+요구할 때만 스킬로 넘기고, 넘길 때는 모드가 바뀐다고 말한다.
+
+Phone wired up (`review = "telegram"`)? The CLI mirrors drafts there itself and the
+first answer to arrive wins. 폰은 CLI가 알아서 보낸다. 먼저 온 답이 결정이다.
 
 Full command list: `README.md`. Plan: `docs/PLAN.md` §9.

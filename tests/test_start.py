@@ -136,8 +136,28 @@ def test_start_launches_the_chosen_agent_in_the_repo(
     monkeypatch.setattr(start, "_subprocess_launcher", launcher)
     assert main(["start", "--agent", "codex"]) == 0
     capsys.readouterr()
-    assert seen[0][0] == start.argv_for("codex")
+    # The printed command keeps the bare name; the exec gets the absolute path, so a
+    # launcher-started process with a stripped PATH still finds the agent.
+    launched = seen[0][0]
+    assert Path(launched[0]).name.startswith("codex")
+    assert Path(launched[0]).is_absolute()
+    assert launched[1:] == start.argv_for("codex")[1:]
     assert (seen[0][1] / "pyproject.toml").is_file()
+
+
+def test_the_agent_is_looked_up_outside_path_too(
+        isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A double-clicked launcher inherits a PATH that never sourced a profile, and the
+    agent is installed exactly where that PATH is missing."""
+    monkeypatch.setattr(start.osinfo, "which", lambda name: None)
+    monkeypatch.setattr(start.osinfo, "find_binary",
+                        lambda name: f"/opt/elsewhere/{name}")
+    assert start.installed() == ["claude", "codex"]
+    assert start.agent_binary("claude") == "/opt/elsewhere/claude"
+    monkeypatch.setattr(start.osinfo, "find_binary", lambda name: None)
+    with pytest.raises(FactoryError) as error:
+        start.agent_binary("claude")
+    assert error.value.code == "AGENT_MISSING"
 
 
 def test_a_launcher_that_blows_up_tells_the_user_to_paste_the_command(

@@ -28,7 +28,8 @@ from pathlib import Path
 
 from .config import repo_root
 from .errors import FactoryError
-from .osinfo import detect_os, expand, home_dir, normalize, which
+from .osinfo import (detect_os, expand, home_dir, normalize, path_prefix,
+                     which)
 
 NAME = "콘텐츠공장"
 # A macOS `.command` is what Finder double-click hands to Terminal; `.sh` has no
@@ -69,11 +70,13 @@ def script(*, repo: Path, os_name: str | None = None, uv: str | None = None) -> 
     target = normalize(os_name) if os_name else detect_os()
     fallback = uv or uv_reference(target)
     if target == "windows":
-        return _batch(repo=repo, fallback=fallback)
-    return _shell(repo=repo, fallback=fallback)
+        return _batch(repo=repo, fallback=fallback,
+                      path=path_prefix(target, home="%USERPROFILE%"))
+    return _shell(repo=repo, fallback=fallback,
+                  path=path_prefix(target, home="$HOME"))
 
 
-def _shell(*, repo: Path, fallback: str) -> str:
+def _shell(*, repo: Path, fallback: str, path: str = "") -> str:
     return f"""#!/bin/sh
 # contents-factory launcher. Rebuild with: uv run factory launcher create
 # Double-clicking this opens Terminal and starts the content factory.
@@ -83,6 +86,11 @@ cd "{repo}" || {{
   read -r _ignored
   exit 1
 }}
+# A double-clicked .command gets a login shell that may never have sourced the
+# profile that added ~/.local/bin, and factory start needs uv, the agent, node and
+# ffmpeg. Prepending the usual directories is cheaper than guessing which one broke.
+PATH="{path}:$PATH"
+export PATH
 UV="$(command -v uv 2>/dev/null || true)"
 if [ -z "$UV" ]; then UV="{fallback}"; fi
 if [ ! -x "$UV" ]; then
@@ -103,7 +111,7 @@ exit "$status"
 """
 
 
-def _batch(*, repo: Path, fallback: str) -> str:
+def _batch(*, repo: Path, fallback: str, path: str = "") -> str:
     """ASCII only: cmd.exe reads this file in the console codepage, not UTF-8."""
     body = f"""@echo off
 rem contents-factory launcher. Rebuild with: uv run factory launcher create
@@ -116,6 +124,9 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+rem Explorer hands this file the registry PATH, which can be missing the npm
+rem prefix and %LOCALAPPDATA% entries that uv and the agent install into.
+set "PATH={path};%PATH%"
 set "FACTORY_UV=uv"
 where uv >nul 2>nul || set "FACTORY_UV={fallback}"
 "%FACTORY_UV%" {" ".join(START_COMMAND)}
