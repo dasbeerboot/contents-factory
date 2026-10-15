@@ -116,3 +116,44 @@ contents-factory/
 | 10 | 구현 | 설계·리뷰 opus 4.8, 양산 codex. fable은 기획만 |
 
 상세 구현 스펙: `docs/P0-SPEC.md`
+
+## 9. 컴맹용 플로우 v1 (2026-10-15, 제안)
+
+원칙 3개. **CLI가 두뇌, 에이전트는 입과 손, 사용자는 대답만.** 에이전트(Claude Code든 Codex든)는 판단하지 않고 `factory wizard next`가 내주는 질문을 사용자 언어로 읽어주고 답을 넘긴다. 모델이 약해도 흐름이 안 깨진다.
+
+### 9.1 설치 = 한 줄 (또는 더블클릭)
+- macOS: `curl -fsSL https://raw.githubusercontent.com/dasbeerboot/contents-factory/main/install.sh | sh`
+- Windows: `irm https://raw.githubusercontent.com/dasbeerboot/contents-factory/main/install.ps1 | iex`
+- 하는 일: uv·ffmpeg·node·higgsfield CLI·Playwright Chromium 설치 → 레포 클론 → `factory init --os <감지>` → 에이전트 선택(설치된 것 감지, 없으면 Claude Code 설치) → 바탕화면에 `콘텐츠공장` 런처(.command/.bat) 생성 → 바로 실행.
+- 런처는 `factory start` 하나. 이게 doctor를 돌리고 에이전트를 `/setup` 또는 `wizard` 프롬프트로 띄운다.
+
+### 9.2 에이전트 중립
+- `CLAUDE.md`와 `AGENTS.md`가 같은 한 문단: "`factory wizard next`를 실행해 나온 질문을 사용자 언어로 묻고, 답을 `factory wizard answer`로 넘겨라. 네가 질문을 지어내거나 순서를 바꾸지 마라. 상태파일은 손대지 마라."
+- Claude Code: 스킬 6종이 그대로 wizard를 호출. Codex: AGENTS.md 한 장으로 같은 동작. 둘 다 `factory start`가 알아서 띄운다.
+
+### 9.3 첫 실행 위저드 (10분, 질문 7개)
+| # | 질문 | 비고 |
+|---|---|---|
+| 1 | 운영체제 (감지해서 확인만) | |
+| 2 | 대화 언어 / 콘텐츠 언어 | |
+| 3 | 브랜드 이름 한 줄 + 뭐 하는 사람인지 한 줄 + 말투 3지선다(따뜻/건조/장난) | persona.md 자동 생성 |
+| 4 | 어디에 올릴 건가 (쓰레드/인스타/틱톡/유튜브/네이버 복수) | 고른 것만 연결 |
+| 5 | 플랫폼 연결: 버튼처럼 링크를 열어주고 "로그인했으면 ㅇㅋ" | Threads=`factory auth threads` 브라우저, 힉스필드=`auth login`, 네이버=`naver login` 창. 키 복붙이 필요한 것(ElevenLabs·Anthropic·YouTube)은 "이 페이지에서 키 만들고 여기 붙여넣기" 한 줄 안내 + 붙여넣으면 CLI가 파일에 저장 |
+| 6 | 몇 시에 올릴까 (아침/점심/저녁/직접) | slots 자동 |
+| 7 | "첫 글 지금 만들어볼까요?" | 바로 9.4로 |
+
+### 9.4 평소 사용 (질문 4개)
+1. "오늘 뭐 만들까요?" 글 / 이미지 / 영상 / 그냥 말로 설명
+2. "주제나 하고 싶은 말 한 줄" (레퍼런스 사진·링크 있으면 첨부)
+3. 초안 보여줌 → "이대로 / 고쳐줘(한 줄) / 다시"
+4. "언제 올릴까요?" 지금 / 다음 슬롯 / 날짜 → 큐 + 자동 승인·무장 (컴맹 모드는 승인=무장 한 번에)
+끝. 게이트·포맷·프롬프트 공동작성은 뒤에서 돌고, 결과만 "반복 문구가 있어서 바꿨어요"처럼 한 줄 보고.
+
+### 9.5 고급 모드
+`/writing-factory` 등 기존 스킬 = 전부 질문 받는 전문가 모드. 위저드가 "자세히 조정할래요?"에 예라고 하면 넘어간다.
+
+### 9.6 에러는 한 가지 행동으로
+코드형 에러 → 사람 말 1줄 + 할 일 1개. 예: `HIGGSFIELD_LOGIN_REQUIRED` → "힉스필드 로그인이 풀렸어요. 지금 창을 열게요(엔터)". `NAVER_SESSION_MISSING` → "네이버 로그인 창을 열게요".
+
+### 9.7 구현 항목
+- `factory wizard` 상태머신(JSON 상태, next/answer/skip/back), `factory start`(doctor → 에이전트 감지·실행), `install.sh`/`install.ps1`, 런처 생성, `AGENTS.md`, `CLAUDE.md`, 컴맹 모드 토글(`factory.toml simple = true`: 승인=무장, 게이트 FAIL 시 자동 재생성 2회까지), 에러 메시지 사전(i18n에 `action` 필드).
