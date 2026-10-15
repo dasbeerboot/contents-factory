@@ -130,6 +130,13 @@ factory media host --item q_... [--index 0] [--dry-run]  # 로컬 미디어 → 
 factory publish <platform> --item q_... [--dry-run]
 factory schedule install|remove|status [--runner auto|launchd|cron|schtasks]
                  | tick [--dry-run]           # auto = factory.toml 의 os 가 정한다
+factory telegram setup [--profile X] [--wait 60] [--no-wait]   # BotFather 3단계 안내 →
+                      # 토큰 숨김 입력 → /start 로 chat_id 자동 저장
+factory telegram status [--profile X] [--json]   # 토큰·chat·offset 유무 (값은 안 찍는다)
+factory telegram test [--text "..."] [--dry-run]            # 1줄 발송 확인
+factory telegram preview --item q_... [--dry-run]           # 미리보기 + 컨펌 버튼 3개
+factory telegram serve [--once] [--poll-timeout 50]         # 버튼 수거 루프
+factory telegram install|remove [--runner auto|launchd|cron|schtasks] [--dry-run]
 factory naver login [--wait-ms N] | status    # 네이버 playwright 세션 (직접 로그인)
 factory auth threads   --profile X [--app-id ID] [--redirect URI] [--exchange-url URL]
                        [--url-only] [--no-open]     # OAuth, writes THREADS_* keys
@@ -181,6 +188,71 @@ factory formats [--kind text|image|video] [--format <name>] [--lang ko|en]
   `factory queue reopen --item q_... --reason "<확인 내용>"`.
   `container_id`나 `published_id`가 남아 있으면 거부한다(`DELIVERY_MAY_BE_PUBLISHED`).
 - `phase=published`인데 `published` 플래그가 없으면 tick이 플래그만 복구한다(재발행 안 함).
+
+## 📱 텔레그램은 미리보기·컨펌 전용 / Telegram is preview and confirm only
+
+**입구가 아니다.** 제작 대화는 PC의 에이전트(Claude Code 또는 Codex)가 `factory wizard`로 한다.
+텔레그램이 하는 일은 세 가지뿐이다.
+
+1. **미리보기** — 만든 글·이미지·영상을 폰에서 바로 본다. 글은 `<pre>` 블록(줄바꿈·여백 유지),
+   이미지는 `sendPhoto`, 영상은 `sendVideo`(`width=1080 height=1920 supports_streaming=true`).
+   50MB를 넘는 영상은 ffmpeg로 화질을 낮춘 **프리뷰본**을 보낸다 — 문서 첨부는 미리보기가
+   아니라 다운로드라서 쓰지 않는다.
+2. **컨펌** — 버튼 3개. `올리기 ✅` / `거절 ❌` / `고쳐줘 ✏️`.
+3. **알림** — 아래 정책에 든 것만.
+
+```sh
+factory telegram setup            # BotFather 3단계 → 토큰 숨김 입력 → 폰에서 /start
+factory telegram status           # 토큰·chat·offset 유무 (토큰 값은 절대 안 찍는다)
+factory telegram preview --item q_...   # 미리보기 + 버튼 발송
+factory telegram install          # 버튼 수거 루프를 OS에 등록 (mac launchd / win·linux 1분 1폴)
+```
+
+버튼이 하는 일:
+
+| 버튼 | 컴맹 모드 (`simple = true`) | 전문가 모드 |
+|---|---|---|
+| 올리기 ✅ | `queue approve` + `arm --reason "telegram:<chat_id>"` | `queue approve` 만 (무장은 따로) |
+| 거절 ❌ | `unapprove` + `disarm` + 사유 `TELEGRAM_REJECTED` 기록 | 같다 |
+| 고쳐줘 ✏️ | 다음 텍스트 1줄을 `state/telegram/edits/<item>.txt` + `extra.edit_request`에 기록 | 같다 |
+
+- **실제 재생성은 위저드 몫이다.** 텔레그램은 고칠 내용을 받아 적는 데까지만 한다.
+- 모든 상태 변경은 `QueueStore`(= CLI와 같은 경로)를 지난다. 텔레그램이 큐 json을 직접 쓰는 일은 없다.
+- 저장된 **그 대화방의 버튼만** 받는다. 다른 chat은 `IGNORED_CHAT`으로 버린다.
+- 같은 업데이트가 재배달되면 `DUPLICATE`로 무시한다(update_id 링버퍼). 첫 실행은 수신함
+  백로그를 건너뛴다 — 봇 개통 전 쌓인 과거 메시지를 승인으로 재생하지 않는다.
+- 타이핑된 줄은 15분이 지나면 `STALE`. 버튼 탭에는 이 검사를 걸지 않는다(미리보기는 몇 시간
+  뒤에 눌러도 정상).
+- 봇 하나당 `getUpdates` 소비자는 `factory telegram serve` **하나뿐**이다. 같은 토큰으로 다른
+  폴러를 돌리면 서로 수신함을 뺏는다.
+
+### 알림 정책 / Notification policy
+
+| | 언제 | 예 |
+|---|---|---|
+| 🚨 즉시 | 발행 실패, 배송 미확정(`unknown`), 토큰 만료 7일 전 | `HTTP_500`, `queue reopen` 필요 |
+| 📊 하루 1번 | `[telegram] summary_at`(UTC) 시각 | 어제 발행 n건 · 오늘 예정 n건 · 대기 컨펌 n건 |
+| (무음) | **그 외 전부.** 발행 성공 포함 | 성공은 일일 요약에만 들어간다 |
+
+목록에 없는 이벤트는 기본값이 침묵이다. 성공을 매번 알리면 그 알림을 무시하게 되고, 그러면
+중요한 알림도 같이 무시된다.
+
+```toml
+# factory.toml
+simple = true           # 컴맹 모드: 승인 = 무장
+review = "telegram"
+
+[telegram]
+summary_at = "21:00Z"   # 일일 요약 시각 (UTC)
+```
+
+`credentials.env`에 `TELEGRAM_BOT_TOKEN` 하나만 들어간다. chat_id는 `/start`로 자동 저장되므로
+묻지 않는다 (`state/telegram/chat.json`).
+
+**Telegram is not an entrance.** It previews what was made, takes one yes/no, and sends
+three kinds of alert. The making happens in the agent on your PC. One `getUpdates`
+consumer per bot; only the saved chat is obeyed; successes stay silent and show up in the
+daily digest.
 
 ## 영상 파이프라인 / Video pipeline
 
@@ -359,6 +431,7 @@ Voice Design(글로 묘사해서 생성)이나 Instant Voice Cloning(본인 음�
 | 네이버 블로그 | (토큰 없음) | `FACTORY_ASIDE_BIN`(기본 `aside`, aside 백엔드만), `FACTORY_PLAYWRIGHT_MODULE` |
 | 미디어 호스팅 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | `SUPABASE_BUCKET`(기본 `contents-factory`) |
 | 텍스트 생성 | `ANTHROPIC_API_KEY` | - |
+| 텔레그램 미리보기·컨펌 | `TELEGRAM_BOT_TOKEN` (`factory telegram setup`이 기록) | - (chat_id는 `/start`로 자동, `state/telegram/chat.json`) |
 
 Threads 토큰은 `factory auth threads --profile X`가 직접 넣는다 — 동의 URL 출력 → 리다이렉트된
 전체 URL을 숨긴 프롬프트에 붙여넣기 → code 교환 → `/me` → `credentials.env`(chmod 600) 기록.
@@ -507,7 +580,8 @@ factory/
   publishers/naver/login.mjs  factory naver login|status 엔트리
   osinfo.py higgsfield.py doctor.py       OS 분기 · CLI 인증 · 호스트 점검
   scheduler/windows.py        Windows Task Scheduler (schtasks)
-  review/terminal.py
+  telegram/{api,state,setup,serve,notify,daemon,cli}.py   폰 미리보기·컨펌·알림 정책
+  review/{terminal,telegram}.py   리뷰 채널 (factory.toml review = 터미널 | 텔레그램)
 profiles/_example/            영문 예시 페르소나 (사주 아님)
 .claude/skills/{setup,profile,writing-factory,image-factory,video-factory,publish}/SKILL.md
 tests/
@@ -532,5 +606,7 @@ tests/
 | `scheduler/token_refresh.py` | `token_refresh.sh` |
 | `queue/`, `scheduler/tick.py` | `queue_autopub.py`, `com.saju.publish.plist` |
 | `generators/text.py` | `persona_writer.py` |
+| `telegram/{serve,state}.py` | `~/.saju-threads/scripts/{ops_poll,drop_serve}.py` (getUpdates 오프셋·백로그 스킵·단일 컨슈머) |
+| `review/telegram.py` | `scripts/tg_review.py`, `ig_lib.sh tg_video_review` (sendVideo 인라인 규약·64바이트 콜백) |
 
 원 레포는 읽기 전용 참조다. 운영 파이프라인은 건드리지 않는다.

@@ -25,6 +25,25 @@ CONFIG_ENV = "FACTORY_CONFIG"
 
 UiLang = Literal["ko", "en"]
 ReviewChannel = Literal["terminal", "telegram"]
+SUMMARY_AT = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]Z?$")
+
+
+class TelegramConfig(BaseModel):
+    """`[telegram]` in factory.toml. Preview and confirm only; see factory/telegram."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # UTC wall clock for the one daily digest. Everything else Telegram sends is
+    # either an alert or an answer to a button, so this is the only schedule.
+    summary_at: str = "21:00Z"
+
+    @field_validator("summary_at")
+    @classmethod
+    def _summary_shape(cls, value: str) -> str:
+        text = str(value).strip()
+        if not SUMMARY_AT.match(text):
+            raise ValueError("summary_at must be HH:MMZ in UTC")
+        return text
 
 
 class Config(BaseModel):
@@ -39,6 +58,10 @@ class Config(BaseModel):
     default_profile: str = "_example"
     home: str = DEFAULT_HOME
     review: ReviewChannel = "terminal"
+    # Beginner mode (PLAN §9.7): approving is also arming, so the phone asks one
+    # question instead of two. The expert path keeps approve and arm separate.
+    simple: bool = False
+    telegram: TelegramConfig = Field(default_factory=TelegramConfig)
     # Extra repeat_guard corpus files, keyed by profile name ("*" applies to every
     # profile). Point these at the post history of the pipeline this profile is taking
     # over from: without it the guard only knows what this factory itself published, so

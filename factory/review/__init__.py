@@ -1,4 +1,8 @@
-"""Review channels. P0 ships terminal only; telegram arrives with the image factory."""
-from . import terminal
+"""Review channels: terminal is the default, telegram is the phone.
 
-__all__ = ["terminal"]
+`factory.toml review = "telegram"` picks which one the skills reach for. The telegram
+channel previews and asks; it never generates and never writes queue state itself.
+"""
+from . import telegram, terminal
+
+__all__ = ["telegram", "terminal"]

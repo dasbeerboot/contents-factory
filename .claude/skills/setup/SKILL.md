@@ -458,7 +458,72 @@ task has no environment of its own, and it runs `pythonw.exe` so no console wind
 every interval. `SCHTASKS_WRITE_FAILED` usually means the shell is not allowed to create
 tasks — rerun it from an elevated PowerShell.
 
+## Step 10: Telegram, for previewing and confirming on a phone
+
+**Telegram is not an entrance / 텔레그램은 입구가 아니다.** It does three things and refuses
+the fourth:
+
+1. shows the finished text, image or video on the user's phone;
+2. asks "publish?" with three buttons — `올리기 ✅` / `거절 ❌` / `고쳐줘 ✏️`;
+3. sends an alert when a publish fails, a delivery is unconfirmed or a token is dying, plus
+   one daily digest.
+
+It does **not** hold a conversation, take a brief or generate anything. If the user starts
+typing requests at the bot, tell them the making happens here, in the agent on their PC,
+and that the bot only answers one question at a time. 제작 대화는 이 에이전트에서 한다.
+
+This step is optional. Skip it if the user only works at the desk.
+
+```
+factory telegram setup          # three BotFather steps, hidden token paste, then /start
+factory telegram status         # token/chat/offset presence, never a value
+factory telegram test           # one line, to prove it arrives
+factory telegram install        # register the confirm loop with this OS
+factory telegram preview --item q_...    # show one queue item with the buttons
+```
+
+What `setup` does, in order:
+
+1. prints the three BotFather steps in `ui_lang`: `/newbot`, answer the name questions, copy
+   the token;
+2. reads the token through a hidden prompt and verifies it with `getMe` — you see the bot's
+   username, never the token;
+3. writes `TELEGRAM_BOT_TOKEN` to that profile's `credentials.env` (chmod 600);
+4. waits 60 seconds for the user to send the bot `/start`, and saves the chat id to
+   `state/telegram/chat.json`.
+
+**Do not ask the user for their chat id.** It is learned from `/start`. If the wait times
+out, the fix is one line: send the bot anything from the phone, then run
+`factory telegram setup` again. The token is already stored, so nothing is lost.
+
+Two config choices, both in `factory.toml`:
+
+```toml
+simple = true           # 컴맹 모드: the ✅ button approves AND arms, one tap
+review = "telegram"     # previews go to the phone instead of the terminal
+
+[telegram]
+summary_at = "21:00Z"   # the one daily digest, UTC
+```
+
+In expert mode (`simple = false`) the ✅ button only approves; arming stays a separate,
+deliberate act, exactly as it is on the CLI. Say which mode you set and why.
+
+`고쳐줘 ✏️` records the user's next typed line into `state/telegram/edits/<item>.txt` and
+onto the item's `extra.edit_request`. **The regeneration is yours, not the bot's**: read
+that line, redo the draft, and send a fresh preview.
+
+The loop that collects button presses is `factory telegram serve`. On macOS `install`
+registers it as a KeepAlive LaunchAgent; on Windows and Linux there is no daemon
+supervision, so they get `telegram serve --once` every minute instead. One bot has exactly
+one `getUpdates` consumer — if the user already runs another bot pipeline, they need a
+separate bot, not a shared token.
+
+Add `--dry-run` to `install` or `remove` to print the plist or the command without touching
+the machine.
+
 Finish by reading back, in four lines: the OS and runtime home, which profile, which
 platforms are connected, and what the next seven days look like. Never list key values.
 If `factory doctor` still has a `blocking:` line, that is the fifth line and it is the
-next thing to do.
+next thing to do. If Telegram is wired up, add one more line saying it is for preview and
+confirmation only.
