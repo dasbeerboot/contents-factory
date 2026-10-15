@@ -26,32 +26,102 @@ the whole host picture in one table.
 
 ## 설치 / Install
 
-### macOS
+**한 줄이면 끝난다.** 터미널을 한 번만 열고 아래를 붙여넣는다. 관리자 권한은 필요 없다.
+
+One line, pasted into a terminal once. No administrator rights required.
+
+### macOS · Linux
 
 ```sh
-brew install ffmpeg node                     # 영상 단계 + 네이버 퍼블리셔
+curl -fsSL https://raw.githubusercontent.com/dasbeerboot/contents-factory/main/install.sh | sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/dasbeerboot/contents-factory/main/install.ps1 | iex
+```
+
+설치 스크립트가 하는 일 (PLAN §9.1):
+
+1. 환경 점검 — OS·아키텍처 확인, root로 돌리면 거절
+2. 패키지 매니저 — mac은 Homebrew 없으면 **자동 설치**, Windows는 winget 확인
+3. `uv` · `git` · `ffmpeg` · `node` · `higgsfield` CLI — **이미 있으면 건너뜀**
+4. 질문 **하나**: "네이버 블로그에도 올릴 건가?" 예라고 하면 `npx playwright install chromium`
+5. 레포를 `~/contents-factory`로 클론 (이미 있으면 `git pull --ff-only`)
+6. `uv sync`
+7. `uv run factory init --os <감지값>`
+8. 에이전트 감지 (claude / codex). 둘 다 없으면 Claude Code 설치
+9. 바탕화면에 **`콘텐츠공장`** 런처 생성
+10. 잠자기 설정 안내 (폰에서 조작하려면 PC가 깨어 있어야 한다)
+11. `factory start` 실행
+
+What the installer does: preflight, package manager (Homebrew is installed automatically
+on macOS, winget is checked on Windows), the five CLIs (skipped when already present), one
+question about Naver, clone or fast-forward into `~/contents-factory`, `uv sync`,
+`factory init`, agent detection with Claude Code as the fallback, the desktop launcher,
+the sleep hint, then `factory start`.
+
+**전 단계 멱등**이다. 중간에 실패하면 몇 번째 단계였는지 한 줄로 말하고, 고친 뒤 **같은 명령을
+그대로 다시** 돌리면 끝난 단계는 건너뛴다. 출력 언어는 `LANG`을 따르고 `--lang ko|en`으로
+덮어쓴다 (파이프로 넘길 땐 `sh -s -- --lang en`).
+
+Every step is idempotent. A failure names its step number; re-running the same command
+skips what already finished. Output language follows `LANG`, overridable with `--lang`.
+
+<details>
+<summary><b>옵션 / Options</b></summary>
+
+| 플래그 | 뜻 |
+|---|---|
+| `--lang ko\|en` | 출력 언어 (기본: `LANG`) |
+| `--dir PATH` | 클론 위치 (기본 `~/contents-factory`) |
+| `--naver` / `--no-naver` | 네이버 질문을 묻지 않고 결정 |
+| `--no-start` | 설치만 하고 `factory start`는 안 띄움 |
+| `--dry-run` | 실행 대신 전부 출력만 |
+
+파이프로 실행할 땐 `sh`에 인자를 넘긴다: `curl -fsSL .../install.sh | sh -s -- --lang en`.
+PowerShell은 파이프에 인자를 못 넘기므로 먼저 받아서 실행한다:
+`irm .../install.ps1 -OutFile i.ps1; ./i.ps1 -Lang en`.
+
+</details>
+
+<details>
+<summary><b>수동 설치 / Manual install</b> (스크립트를 안 쓰고 직접 할 때)</summary>
+
+#### macOS
+
+```sh
+brew install ffmpeg node git
 curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh
 higgsfield auth login                        # 브라우저 OAuth, 토큰은 CLI가 보관·갱신
+git clone https://github.com/dasbeerboot/contents-factory.git ~/contents-factory
+cd ~/contents-factory
 uv sync
 uv run factory init --os macos
-uv run factory doctor                        # 결측 바이너리·로그인 상태 확인
+uv run factory launcher create                # 바탕화면 런처
+uv run factory doctor                         # 결측 바이너리·로그인 상태 확인
 uv run pytest
 ```
 
 네이버를 쓸 거면 [aside](https://aside.com/download)(**macOS 15.0 이상**)를 깔고 네이버에
 1회 로그인한다. aside를 안 쓰면 playwright 백엔드를 macOS에서도 쓸 수 있다 (아래 네이버 절).
 
-### Windows (PowerShell)
+#### Windows (PowerShell)
 
 ```powershell
 winget install --id Gyan.FFmpeg             # ffmpeg + ffprobe
 winget install --id OpenJS.NodeJS.LTS       # node, 네이버 퍼블리셔용
+winget install --id Git.Git
 irm https://astral.sh/uv/install.ps1 | iex  # uv
 # higgsfield CLI: 설치 명령은 공식 안내를 따른다 → https://github.com/higgsfield-ai/cli
 higgsfield auth login                       # 브라우저 OAuth
+git clone https://github.com/dasbeerboot/contents-factory.git $env:USERPROFILE\contents-factory
+cd $env:USERPROFILE\contents-factory
 uv sync
 uv run factory init --os windows
+uv run factory launcher create
 uv run factory doctor
 uv run pytest
 ```
@@ -71,14 +141,105 @@ uv run factory naver status
 깨지면 `PLAYWRIGHT_LOAD_FAILED`, Chromium 바이너리가 없으면
 `PLAYWRIGHT_BROWSER_MISSING`(= `npx playwright install chromium`) 이다.
 
-### Linux
+#### Linux
 
-macOS 절과 같고, ffmpeg·node는 배포판 패키지로 깔고 `factory init --os linux`,
+macOS 절과 같고, ffmpeg·node·git은 배포판 패키지로 깔고 `factory init --os linux`,
 스케줄러는 `--runner cron`, 네이버는 playwright 백엔드다.
+
+</details>
 
 Python 3.11+. `node` is required for the Naver publisher; `aside` is macOS-only and
 Windows/Linux use the Playwright backend instead. `factory doctor` names anything missing
 with the install line for the current OS.
+
+### 바탕화면 런처 / Desktop launcher
+
+설치가 끝나면 바탕화면에 런처가 하나 생긴다. **다음부터는 터미널을 열 필요가 없다.**
+
+| | 파일 | 하는 일 |
+|---|---|---|
+| macOS | `~/Desktop/콘텐츠공장.command` | 터미널을 열고 `cd ~/contents-factory && uv run factory start` |
+| Windows | `%USERPROFILE%\Desktop\콘텐츠공장.bat` | 같음. `uv`가 PATH에 없으면 `%USERPROFILE%\.local\bin\uv.exe` 절대경로 |
+| Linux | `~/Desktop/콘텐츠공장.sh` | 같음 |
+
+```
+factory launcher create [--os ...] [--dry-run]   # 다시 만들기 (덮어씀, 멱등)
+factory launcher remove
+factory launcher status
+```
+
+런처는 실패하면 창을 닫지 않고 종료코드를 보여준다 — 깜빡이고 사라지는 창은 "아무 일도 안
+일어났다"와 구분이 안 된다. 바탕화면 위치가 OneDrive 등으로 리다이렉트됐으면
+`FACTORY_DESKTOP`으로 지정한다.
+
+The launcher keeps its window open on failure and reports the exit code. Point
+`FACTORY_DESKTOP` at the real desktop if yours is redirected (OneDrive).
+
+### 폰에서 조작 / Drive it from your phone
+
+PLAN §9.8. **입구는 에이전트다** — Claude Code든 Codex든 같은 두뇌(`factory wizard`)를 쓴다.
+텔레그램은 입구가 아니고 미리보기와 컨펌 버튼만 담당한다.
+
+`factory remote install`이 에이전트의 원격제어를 이 PC에 **상시 등록**한다. 그러면 폰 앱에서
+`contents-factory` 환경을 골라 조작할 수 있다.
+
+```
+factory remote install [--agent claude|codex] [--runner auto|launchd|schtasks|systemd|cron]
+                       [--dry-run] [--no-probe]
+factory remote remove  [--agent ...] [--dry-run]
+factory remote status  [--agent ...]
+```
+
+`--agent`를 생략하면 설치된 에이전트를 감지한다. 등록 방식은 OS가 정한다.
+
+| OS | 등록 대상 | 로그 |
+|---|---|---|
+| macOS | launchd user agent (`com.contents-factory.<agent>-remote-control`) | `~/Library/Logs/contents-factory-remote.log` |
+| Windows | Task Scheduler, 로그온 트리거 + 실패 시 1분 뒤 재시작 | `~/.contents-factory/logs/` |
+| Linux | systemd user unit, 없으면 `@reboot` crontab | `~/.contents-factory/logs/` |
+
+| 에이전트 | 명령 | 상시 유지 | 폰 쪽 준비 |
+|---|---|---|---|
+| **Claude Code** | `claude remote-control --name contents-factory --spawn same-dir` | KeepAlive (죽으면 재시작) | Claude 앱에서 환경 선택 |
+| **Codex** | `codex remote-control start` | 로그온 시 1회 (데몬이 자기 수명을 관리하므로 KeepAlive 금지) | 데스크톱 앱에서 QR 스캔, 또는 `codex remote-control pair` 수동 코드. **macOS·Windows만 지원** |
+
+Codex 원격제어는 2026-06-25 GA로, Claude와 마찬가지로 **내 PC에서 돌아가는 세션을 폰에서
+조작**하는 기능이다 (OpenAI 릴레이 경유, 포트 개방·SSH 터널 없음). 다만 공식 설정 경로는
+ChatGPT **데스크톱 앱**의 QR 페어링이고 CLI 경로(`codex remote-control start|pair`)는
+`[experimental]` 라벨이다. 근거: [developer-commands](https://learn.chatgpt.com/docs/developer-commands.md?surface=cli),
+[remote-connections](https://learn.chatgpt.com/docs/remote-connections.md),
+[mobile](https://learn.chatgpt.com/docs/mobile.md),
+[changelog](https://learn.chatgpt.com/docs/changelog).
+
+Codex remote control went GA on 2026-06-25 and, like Claude Code, drives a session running
+on *your own* machine from the phone — not to be confused with Codex cloud tasks, which run
+in OpenAI-hosted containers. Its documented setup path is a QR scan from the ChatGPT desktop
+app; the CLI path is still marked experimental, and only macOS and Windows hosts are supported.
+
+#### 워크스페이스 신뢰 / Workspace trust
+
+에이전트가 이 폴더를 한 번도 신뢰한 적 없으면, 보이지 않는 프롬프트에서 멈춘 데몬이 된다.
+그래서 `remote install`은 **신뢰 기록을 먼저 확인**하고, 없으면 거절한다.
+
+- Claude: 레포 디렉토리에서 `claude --print "ok"`를 1회 돌려 `~/.claude.json`에 기록이
+  생기는지 본다. 그래도 없으면 `CLAUDE_WORKSPACE_UNTRUSTED` — **사용자가 그 폴더에서
+  `claude`를 한 번 열어 신뢰를 수락**해야 한다.
+- Codex: `~/.codex/config.toml`의 `[projects."<path>"] trust_level`을 읽는다 (상위 폴더도 인정).
+  없으면 `CODEX_WORKSPACE_UNTRUSTED`.
+
+🚨 **신뢰 파일은 절대 직접 고치지 않는다.** 사용자 대신 보안 질문에 답하는 짓이다. 거절할 때도
+등록하려던 정의는 그대로 출력하므로 무엇이 등록될지 미리 볼 수 있다.
+
+The trust record is never written on the user's behalf — accepting a security prompt is
+theirs to do. A refusal still prints the definition it would have registered.
+
+#### 잠자기 / Sleep
+
+PC가 잠들면 폰에서 못 붙는다. 로그인 세션도 PC에만 있으므로 **실행은 PC, 폰은 조작·컨펌**이다.
+
+- macOS: `open "x-apple.systempreferences:com.apple.preference.energysaver"`
+- Windows: `powercfg /change standby-timeout-ac 0`
+- Linux: `sudo systemctl mask sleep.target suspend.target`
 
 ### 외부 바이너리 / External binaries
 
@@ -130,6 +291,12 @@ factory media host --item q_... [--index 0] [--dry-run]  # 로컬 미디어 → 
 factory publish <platform> --item q_... [--dry-run]
 factory schedule install|remove|status [--runner auto|launchd|cron|schtasks]
                  | tick [--dry-run]           # auto = factory.toml 의 os 가 정한다
+factory launcher create|remove|status [--os ...] [--name ...] [--dry-run]
+                 # 바탕화면 콘텐츠공장 런처. create 는 덮어쓰기 멱등
+factory remote install|remove|status [--agent claude|codex] [--dry-run]
+                 [--runner auto|launchd|schtasks|systemd|cron] [--no-probe]
+                 # 폰에서 조작하려고 에이전트 원격제어를 이 PC에 상시 등록.
+                 # 워크스페이스 신뢰가 없으면 거절한다 (신뢰 파일은 안 고친다)
 factory naver login [--wait-ms N] | status    # 네이버 playwright 세션 (직접 로그인)
 factory auth threads   --profile X [--app-id ID] [--redirect URI] [--exchange-url URL]
                        [--url-only] [--no-open]     # OAuth, writes THREADS_* keys
@@ -507,7 +674,10 @@ factory/
   publishers/naver/login.mjs  factory naver login|status 엔트리
   osinfo.py higgsfield.py doctor.py       OS 분기 · CLI 인증 · 호스트 점검
   scheduler/windows.py        Windows Task Scheduler (schtasks)
+  launcher.py                 바탕화면 콘텐츠공장 런처 (.command/.bat/.sh)
+  remote.py                   에이전트 폰 원격제어 상시 등록 + 워크스페이스 신뢰 게이트
   review/terminal.py
+install.sh install.ps1        한 줄 설치 (멱등, ko/en, --dry-run)
 profiles/_example/            영문 예시 페르소나 (사주 아님)
 .claude/skills/{setup,profile,writing-factory,image-factory,video-factory,publish}/SKILL.md
 tests/
