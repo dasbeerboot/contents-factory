@@ -158,13 +158,8 @@ contents-factory/
 ### 9.7 구현 항목
 - `factory wizard` 상태머신(JSON 상태, next/answer/skip/back), `factory start`(doctor → 에이전트 감지·실행), `install.sh`/`install.ps1`, 런처 생성, `AGENTS.md`, `CLAUDE.md`, 컴맹 모드 토글(`factory.toml simple = true`: 승인=무장, 게이트 FAIL 시 자동 재생성 2회까지), 에러 메시지 사전(i18n에 `action` 필드).
 
-### 9.8 사용자 PC에 항상 켜두기 + 폰 조작 (주원 10/15 명확화: 우리 rc-* 말고 사용자 본인 컴)
-세 가지 입구가 같은 두뇌(`factory wizard`)를 쓴다.
-| 입구 | 항상 켜두기 | 폰 조작 | 전제 |
-|---|---|---|---|
-| Claude Code | `factory remote install` → `claude remote-control --name contents-factory --spawn same-dir`를 launchd(mac)/Task Scheduler(win)에 KeepAlive로 등록. 설치 스크립트가 그 폴더에서 `claude`를 1회 열어 워크스페이스 신뢰를 기록 | Claude 폰 앱에서 환경 선택 | Claude 구독 |
-| Codex | Codex CLI엔 폰 원격 제어가 없음(확인 필요). 로컬 대화만 | 없음 → 아래 텔레그램으로 | ChatGPT 계정 |
-| **텔레그램 봇 (기본 추천)** | `factory telegram install` → 봇 데몬을 launchd/Task Scheduler 등록. BotFather에서 봇 만들기 3단계는 위저드가 안내 | 텔레그램 채팅이 곧 UI. 질문→답, 초안 사진·영상 인라인 미리보기, "올릴까요?" 버튼 | 에이전트 모델 불필요. 자유문 답은 팩토리의 Anthropic 키로 분류 |
-- 텔레그램 입구가 컴맹에겐 가장 쉽다. 설치 후 폰에서만 써도 된다. 코덱스·클로드코드는 "더 깊게 조정"하고 싶은 사람용.
-- 공통 전제: PC가 켜져 있고 잠자기 안 함. 설치 스크립트가 안내(mac `잠자기 안 함` 설정 열기, win 전원 옵션). 노트북 덮으면 발행이 멈춘다는 걸 첫 화면에 명시.
-- 로그인 세션(힉스필드·네이버·Threads 토큰)은 PC에만 있으므로 폰은 조작만, 실행은 PC.
+### 9.8 사용자 PC에 항상 켜두기 + 폰 조작 (주원 10/15 확정)
+- **기본 입구 = 에이전트** (Claude Code 또는 Codex). 둘 다 같은 두뇌(`factory wizard`)를 쓴다.
+- **텔레그램은 입구가 아니다.** 역할은 둘뿐: ① 만든 글·이미지·영상을 폰으로 보여주기(인라인 미리보기) ② "올릴까요?" 컨펌 버튼(승인·거절·고쳐줘 한 줄). 발행 결과·장애 알림도 여기로. 대화형 제작은 하지 않는다.
+- 항상 켜두기: Claude Code 사용자는 `factory remote install` → 사용자 PC에 `claude remote-control --name contents-factory --spawn same-dir`를 launchd(mac)/Task Scheduler(win) KeepAlive 등록, 설치 스크립트가 그 폴더에서 `claude`를 1회 열어 워크스페이스 신뢰 기록 → Claude 폰 앱에서 환경 선택해 조작. Codex는 폰 원격 제어 기능 확인 후 되면 같은 방식, 안 되면 "PC에서만 대화, 컨펌은 텔레그램"으로 안내.
+- 공통 전제: PC 켜짐·잠자기 해제. 설치 때 설정 열어주고 첫 화면에 명시. 로그인 세션은 PC에만 있으므로 실행은 PC, 폰은 조작·컨펌.
