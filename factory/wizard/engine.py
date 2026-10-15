@@ -249,17 +249,21 @@ def _build_draft(config: Config, record: dict[str, Any], *, result: apply.Result
     record["notes"]["gates"] = gates.table.strip()
     record["notes"]["gate_ok"] = "yes" if gates.ok else "no"
     record["notes"].pop("answered_by", None)
-    _to_phone(config, record, result=result)
+    _to_phone(config, record, result=result, dry_run=dry_run)
 
 
 def _to_phone(config: Config, record: dict[str, Any], *,
-              result: apply.Result) -> None:
+              result: apply.Result, dry_run: bool = False) -> None:
     """Mirror the draft onto the phone when Telegram is the review channel.
 
     No buttons here: nothing is queued yet, so there is nothing to approve. The
     buttons go out with the queued item at the end of the flow.
     """
     notes = record["notes"]
+    if dry_run:
+        # A dry run has no real output to show, and a phone send is not a dry run.
+        notes["phone_preview"] = "skipped:DRY_RUN"
+        return
     if notes.get("phone_preview") or not apply.telegram_live(config):
         return
     brief_id = str(notes.get("brief") or "")
@@ -454,7 +458,7 @@ def _queue(config: Config, record: dict[str, Any], value: str, *, result: apply.
     # The draft round is over, so a later phone press is a new decision rather than
     # the loser of a race, and it is allowed to reopen the draft.
     notes.pop("answered_by", None)
-    if apply.telegram_live(config):
+    if not dry_run and apply.telegram_live(config):
         code = apply.preview_item(config, item_id=item, result=result)
         notes["phone_preview"] = "item" if not code else f"failed:{code}"
         if code:

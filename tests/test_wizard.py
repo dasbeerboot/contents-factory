@@ -502,8 +502,28 @@ def test_gate_failures_come_back_as_codes_not_scraped_from_a_table(
 # --- the phone, wired into the make flow ---------------------------------------
 
 def wire_telegram(home: Path, monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    """Make `telegram_live` true and record the previews instead of sending them."""
+    """Make `telegram_live` true and record the previews instead of sending them.
+
+    Generation is mocked too: a phone send is not a dry run, so these flows run with
+    `dry_run=False` and must not reach a paid generator.
+    """
     sent: list[list[str]] = []
+
+    def fake_generate(config, *, kind, brief_id, dry_run, result):
+        # The real generator writes the candidate onto the brief, and the queue step
+        # reads it from there, so the stand-in has to do the same.
+        from factory.spec.brief import Output, load_brief, save_brief
+
+        text = "one cached header cost three days"
+        brief = load_brief(config.home_path, brief_id)
+        brief.outputs = [Output(text=text, gates={}, chosen=False)]
+        save_brief(config.home_path, brief)
+        return text
+
+    monkeypatch.setattr(apply, "generate", fake_generate)
+    monkeypatch.setattr(apply, "gate",
+                        lambda config, **kwargs: apply.Gates(ok=True,
+                                                             table="limits  PASS"))
 
     def fake_preview_draft(config, *, brief_id, output=0, result):
         sent.append(["draft", brief_id])
@@ -526,16 +546,33 @@ def test_telegram_review_mirrors_the_draft_and_then_the_queued_item(
     sent = wire_telegram(isolated_home, monkeypatch)
     config = config_for(isolated_home, review="telegram")
     start_make(config)
-    answer(config, "what", "text")
-    answer(config, "topic", "one cached header cost three days")
+    answer(config, "what", "text", dry_run=False)
+    answer(config, "topic", "one cached header cost three days", dry_run=False)
     engine.skip(config)
-    shown = ask(config)
+    shown = ask(config, dry_run=False)
     assert sent[0][0] == "draft", "the draft goes to the phone at the draft step"
     assert shown["phone"]
-    answer(config, "draft", "ok")
-    result = answer(config, "when", "next")
+    answer(config, "draft", "ok", dry_run=False)
+    result = answer(config, "when", "next", dry_run=False)
     assert sent[1][0] == "item", "the buttons ride on the queued item"
     assert sent[1][1] == result["notes"]["item"]
+
+
+def test_a_dry_run_never_sends_to_the_phone(
+        isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A dry run has nothing real to show, and a send is not a dry run."""
+    sent = wire_telegram(isolated_home, monkeypatch)
+    config = config_for(isolated_home, review="telegram")
+    start_make(config)
+    answer(config, "what", "text")
+    answer(config, "topic", "a dry run")
+    engine.skip(config)
+    shown = ask(config)
+    assert sent == []
+    assert "phone" not in shown
+    answer(config, "draft", "ok")
+    answer(config, "when", "next")
+    assert sent == []
 
 
 def test_a_terminal_only_home_never_touches_the_phone(
@@ -544,10 +581,10 @@ def test_a_terminal_only_home_never_touches_the_phone(
     monkeypatch.setattr(apply, "telegram_live", lambda config: False)
     config = config_for(isolated_home, review="terminal")
     start_make(config)
-    answer(config, "what", "text")
-    answer(config, "topic", "a quiet terminal run")
+    answer(config, "what", "text", dry_run=False)
+    answer(config, "topic", "a quiet terminal run", dry_run=False)
     engine.skip(config)
-    shown = ask(config)
+    shown = ask(config, dry_run=False)
     assert sent == []
     assert "phone" not in shown
 
