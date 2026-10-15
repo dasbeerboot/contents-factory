@@ -5,7 +5,20 @@ ui_lang = "ko"
 content_lang = "en"
 default_profile = "_example"
 home = "~/.contents-factory"
+# "terminal" prints candidates and the gate table here; "telegram" previews them on your
+# phone with a publish/reject/fix-it button. Telegram is preview and confirmation only --
+# the making always happens in the agent on this machine.
 review = "terminal"
+
+# Beginner mode: the publish button approves AND arms, so one tap is the whole decision.
+# With simple = false, arming stays a separate deliberate act, as it is on the CLI.
+simple = false
+
+[telegram]
+# The one daily digest (yesterday published / today scheduled / awaiting confirmation),
+# in UTC. Everything else Telegram sends is either an alert or an answer to a button;
+# successes are silent on purpose.
+summary_at = "21:00Z"
 
 # Extra repeat_guard corpus files, keyed by profile ("*" = every profile). Point these at
 # the post history of whatever pipeline this profile is taking over from; otherwise the

@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from ..errors import FactoryError
-from ..spec.queue import (IN_FLIGHT, QUEUE_ID, RESUMABLE, QueueItem, parse_stamp,
-                          utc_stamp)
+from ..spec.queue import (EXTRA_KEY, EXTRA_VALUE_MAX, IN_FLIGHT, QUEUE_ID, RESUMABLE,
+                          QueueItem, parse_stamp, utc_stamp)
 
 DAY_FILE = "%s.json"
 _ALPHABET = string.ascii_lowercase + string.digits
@@ -194,6 +194,25 @@ class QueueStore:
             if not str(public_url).startswith("https://"):
                 raise FactoryError("MEDIA_PUBLIC_URL_INVALID")
             item.media[index].public_url = public_url
+            return item
+        return self.mutate(item_id, change)
+
+    def set_extra(self, item_id: str, key: str, value: str) -> QueueItem:
+        """Write one `extra` field. Used by the review channels to hand a correction
+        back to the wizard, which is why it refuses anything already in delivery:
+        `extra` is part of the content fingerprint."""
+        if not EXTRA_KEY.match(str(key or "")):
+            raise FactoryError("EXTRA_KEY_INVALID", str(key)[:32] or "empty")
+        text = str(value or "")
+        if len(text) > EXTRA_VALUE_MAX:
+            raise FactoryError("EXTRA_VALUE_TOO_LONG", key)
+
+        def change(item: QueueItem) -> QueueItem:
+            if item.published:
+                raise FactoryError("QUEUE_ALREADY_PUBLISHED", item_id)
+            if item.phase != "ready":
+                raise FactoryError("DELIVERY_IN_PROGRESS", item.phase)
+            item.extra[str(key)] = text
             return item
         return self.mutate(item_id, change)
 

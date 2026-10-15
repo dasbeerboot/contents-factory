@@ -1209,6 +1209,11 @@
     "command": "",
     "human": "규칙 문서 이름이 잘못됐어요."
   },
+  "RUNNER_UNKNOWN": {
+    "action": "auto 로 두면 이 컴퓨터에 맞는 걸 고릅니다.",
+    "command": "",
+    "human": "등록 방식 이름이 잘못됐어요."
+  },
   "SCHEDULE_COMMAND_UNKNOWN": {
     "action": "install, remove, status, tick 중에서 쓰세요.",
     "command": "factory schedule status",
@@ -1288,6 +1293,71 @@
     "action": "대본 단계를 다시 돌리세요.",
     "command": "",
     "human": "테이크 수와 프롬프트 수가 안 맞아요."
+  },
+  "TELEGRAM_BOT_UNVERIFIED": {
+    "action": "토큰을 다시 붙여넣으세요. 봇을 지웠다면 새로 만드세요.",
+    "command": "factory telegram setup",
+    "human": "토큰으로 봇 확인이 안 됐어요."
+  },
+  "TELEGRAM_CALLBACK_TOO_LONG": {
+    "action": "항목 번호가 비정상입니다. 다시 적재하세요.",
+    "command": "",
+    "human": "버튼 데이터가 한도를 넘었어요."
+  },
+  "TELEGRAM_CHAT_INVALID": {
+    "action": "셋업을 다시 돌려 /start 로 번호를 받으세요.",
+    "command": "factory telegram setup",
+    "human": "저장된 대화 번호가 이상해요."
+  },
+  "TELEGRAM_CHAT_MISSING": {
+    "action": "폰에서 봇에게 /start 를 한 번 보내세요.",
+    "command": "factory telegram setup",
+    "human": "어느 대화로 보낼지 아직 몰라요."
+  },
+  "TELEGRAM_COMMAND_UNKNOWN": {
+    "action": "setup, status, test, preview, serve 중에서 쓰세요.",
+    "command": "factory telegram status",
+    "human": "텔레그램 명령을 잘못 썼어요."
+  },
+  "TELEGRAM_EDIT_EMPTY": {
+    "action": "뭘 고칠지 한 줄 적어 보내세요.",
+    "command": "",
+    "human": "고칠 내용이 비어 있어요."
+  },
+  "TELEGRAM_FILE_UNREADABLE": {
+    "action": "파일이 그 자리에 있는지 확인하세요.",
+    "command": "",
+    "human": "보낼 파일을 읽지 못했어요."
+  },
+  "TELEGRAM_PREVIEW_TOO_LARGE": {
+    "action": "줄인 미리보기도 한도를 넘었어요. 길이나 해상도를 낮추세요.",
+    "command": "",
+    "human": "영상이 너무 커서 폰으로 못 보냈어요."
+  },
+  "TELEGRAM_REJECTED": {
+    "action": "봇을 차단했거나 대화를 지웠는지 확인하세요.",
+    "command": "factory telegram test",
+    "human": "텔레그램이 요청을 거절했어요."
+  },
+  "TELEGRAM_RESPONSE_INVALID": {
+    "action": "잠시 뒤 다시 시도하세요.",
+    "command": "factory telegram status",
+    "human": "텔레그램 응답을 못 읽었어요."
+  },
+  "TELEGRAM_TOKEN_INVALID": {
+    "action": "BotFather 가 준 줄을 그대로 붙여넣으세요.",
+    "command": "factory telegram setup",
+    "human": "봇 토큰 형식이 아니에요."
+  },
+  "TELEGRAM_TOKEN_MISSING": {
+    "action": "BotFather 에서 봇을 만들고 토큰을 저장하세요.",
+    "command": "factory telegram setup",
+    "human": "텔레그램 봇 토큰이 아직 없어요."
+  },
+  "TELEGRAM_UNREACHABLE": {
+    "action": "인터넷을 확인하고 다시 시도하세요. 발행은 영향 없습니다.",
+    "command": "factory telegram status",
+    "human": "텔레그램에 연결하지 못했어요."
   },
   "TEXT_REQUIRED": {
     "action": "본문을 같이 넘기거나 작업지시서를 지정하세요.",

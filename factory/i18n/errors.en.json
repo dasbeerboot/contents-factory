@@ -1209,6 +1209,11 @@
     "command": "",
     "human": "That rules document name is not valid."
   },
+  "RUNNER_UNKNOWN": {
+    "action": "Leave it as auto and the right one is chosen.",
+    "command": "",
+    "human": "That runner name is not valid."
+  },
   "SCHEDULE_COMMAND_UNKNOWN": {
     "action": "Use install, remove, status or tick.",
     "command": "factory schedule status",
@@ -1288,6 +1293,71 @@
     "action": "Re-run the script stage.",
     "command": "",
     "human": "The take count and prompt count disagree."
+  },
+  "TELEGRAM_BOT_UNVERIFIED": {
+    "action": "Paste it again, or make a new bot if you deleted it.",
+    "command": "factory telegram setup",
+    "human": "The token did not identify a bot."
+  },
+  "TELEGRAM_CALLBACK_TOO_LONG": {
+    "action": "The item id is abnormal; queue it again.",
+    "command": "",
+    "human": "The button payload is over the limit."
+  },
+  "TELEGRAM_CHAT_INVALID": {
+    "action": "Re-run setup and get it from /start.",
+    "command": "factory telegram setup",
+    "human": "The saved chat id is not valid."
+  },
+  "TELEGRAM_CHAT_MISSING": {
+    "action": "Send /start to the bot once from your phone.",
+    "command": "factory telegram setup",
+    "human": "There is no chat to send to yet."
+  },
+  "TELEGRAM_COMMAND_UNKNOWN": {
+    "action": "Use setup, status, test, preview or serve.",
+    "command": "factory telegram status",
+    "human": "That is not a telegram subcommand."
+  },
+  "TELEGRAM_EDIT_EMPTY": {
+    "action": "Send one line saying what to change.",
+    "command": "",
+    "human": "The correction is empty."
+  },
+  "TELEGRAM_FILE_UNREADABLE": {
+    "action": "Check the file is still there.",
+    "command": "",
+    "human": "The file to send could not be read."
+  },
+  "TELEGRAM_PREVIEW_TOO_LARGE": {
+    "action": "Even the reduced preview is over the limit; shorten it or drop the resolution.",
+    "command": "",
+    "human": "The video is too large to send to the phone."
+  },
+  "TELEGRAM_REJECTED": {
+    "action": "Check you have not blocked the bot or deleted the chat.",
+    "command": "factory telegram test",
+    "human": "Telegram rejected the request."
+  },
+  "TELEGRAM_RESPONSE_INVALID": {
+    "action": "Retry shortly.",
+    "command": "factory telegram status",
+    "human": "The Telegram response could not be read."
+  },
+  "TELEGRAM_TOKEN_INVALID": {
+    "action": "Paste the line BotFather gave you, unchanged.",
+    "command": "factory telegram setup",
+    "human": "That is not a bot token."
+  },
+  "TELEGRAM_TOKEN_MISSING": {
+    "action": "Create the bot in BotFather and store the token.",
+    "command": "factory telegram setup",
+    "human": "The Telegram bot token is not saved yet."
+  },
+  "TELEGRAM_UNREACHABLE": {
+    "action": "Check the connection and retry; publishing is unaffected.",
+    "command": "factory telegram status",
+    "human": "Telegram could not be reached."
   },
   "TEXT_REQUIRED": {
     "action": "Pass the text or a brief.",

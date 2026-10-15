@@ -15,6 +15,9 @@
       `factory auth threads --profile <name> --app-id <ID> --redirect <URI>` → 1건 발행
 - [ ] ❌ 네이버 aside 로그인 세션 준비
 - [ ] ❌ 지인 1명 온보딩 실측 (클론 → /setup → /writing-factory → 큐 → 드라이런)
+- [ ] ❌ 텔레그램 실기 검증 1회 — 실제 봇 생성(`factory telegram setup`) → `telegram test` →
+      영상 1건 `telegram preview` → 폰에서 버튼 3개 각각 눌러보기 → `telegram install`.
+      코드·모킹 테스트만 완료(10/15), 실발송·실등록 0회
 
 ### 발행 대기 큐 (2026-10-14, 스케줄러 미설치라 자동 발행 안 됨)
 
@@ -73,7 +76,12 @@
 - [ ] ❌ 프로필 옵션 `auto_approve` (armed 게이트 유지)
 - [ ] ❌ 수진 프로필용 비케이스 포맷(2인칭 관찰글) — 케이스썰은 실사연만 규칙
 - [ ] ❌ 네이버 이미지 업로드 (`IMAGE_UPLOAD_UNSUPPORTED` 해제)
-- [ ] ❌ 텔레그램 리뷰 채널 (`factory/review/telegram.py`)
+- [x] ✅ 텔레그램 미리보기·컨펌 채널 (`factory/telegram/`, `factory/review/telegram.py`)
+      — setup(BotFather 3단계·토큰 숨김입력·/start chat_id 자동저장) / preview(글 `<pre>`·
+      sendPhoto·sendVideo 1080×1920 supports_streaming, 50MB 초과는 ffmpeg 프리뷰본) /
+      serve(getUpdates 오프셋·백로그 스킵·버튼 3개·멱등) / 알림 정책(🚨 실패·unknown·
+      토큰만료, 📊 일일요약, 그 외 무음) / install launchd·cron·schtasks.
+      **이 맥에서는 `--dry-run` 만 실행 — 실제 등록·실발송 0회**
 - [ ] ❌ CTA 로테이션 적용 로직 (`platforms.json cta_rotation`)
 - [ ] ❌ 미구현 게이트 SKIP 해소: text_legibility·logo_geometry·product_identity
 
@@ -108,7 +116,7 @@
 - [ ] ❌ 지인 1명 실측: `factory start` → setup 7문항 → 첫 글 발행까지 혼자 가는지
 
 ## P2
-- [ ] ❌ 영상 리뷰 sendVideo 인라인
+- [x] ✅ 영상 리뷰 sendVideo 인라인 (`factory/review/telegram.py`, 문서첨부 금지 규약 포함)
 - [ ] ❌ 테이크 접합부 FRAME_JUMP (멀티테이크 실측에 남은 유일한 bg_motion 위반)
 
 ## P3

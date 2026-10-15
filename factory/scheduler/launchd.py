@@ -9,6 +9,7 @@ import plistlib
 import subprocess
 import sys
 from pathlib import Path
+from typing import Sequence
 
 LABEL = "com.contents-factory.tick"
 START_INTERVAL_SECONDS = 900
@@ -18,22 +19,35 @@ def agent_path(label: str = LABEL) -> Path:
     return Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
 
 
+TICK_ARGUMENTS: tuple[str, ...] = ("schedule", "tick")
+
+
 def definition(*, home: Path, python: str | None = None, label: str = LABEL,
                interval: int = START_INTERVAL_SECONDS,
-               working_directory: Path | None = None) -> dict[str, object]:
+               working_directory: Path | None = None,
+               arguments: Sequence[str] = TICK_ARGUMENTS,
+               keep_alive: bool = False,
+               log_name: str = "tick") -> dict[str, object]:
+    """One agent. `keep_alive` is for a loop that should never exit (the confirm
+    poller); the interval form is for a command that runs and returns (the tick)."""
     executable = python or sys.executable
     logs = Path(home) / "logs"
-    return {
+    agent: dict[str, object] = {
         "Label": label,
-        "ProgramArguments": [executable, "-m", "factory", "schedule", "tick"],
-        "StartInterval": int(interval),
-        "RunAtLoad": False,
+        "ProgramArguments": [executable, "-m", "factory", *arguments],
+        "RunAtLoad": bool(keep_alive),
         "WorkingDirectory": str(working_directory or Path.cwd()),
         "EnvironmentVariables": {"FACTORY_HOME": str(home)},
-        "StandardOutPath": str(logs / "tick.log"),
-        "StandardErrorPath": str(logs / "tick.err"),
+        "StandardOutPath": str(logs / f"{log_name}.log"),
+        "StandardErrorPath": str(logs / f"{log_name}.err"),
         "ProcessType": "Background",
     }
+    if keep_alive:
+        # A long poll loop has no schedule: launchd restarts it when it dies.
+        agent["KeepAlive"] = True
+    else:
+        agent["StartInterval"] = int(interval)
+    return agent
 
 
 def render(definition_data: dict[str, object]) -> bytes:
@@ -41,12 +55,15 @@ def render(definition_data: dict[str, object]) -> bytes:
 
 
 def install(*, home: Path, python: str | None = None, label: str = LABEL,
-            interval: int = START_INTERVAL_SECONDS, load: bool = True) -> Path:
+            interval: int = START_INTERVAL_SECONDS, load: bool = True,
+            arguments: Sequence[str] = TICK_ARGUMENTS, keep_alive: bool = False,
+            log_name: str = "tick") -> Path:
     target = agent_path(label)
     target.parent.mkdir(parents=True, exist_ok=True)
     (Path(home) / "logs").mkdir(parents=True, exist_ok=True)
     target.write_bytes(render(definition(home=home, python=python, label=label,
-                                        interval=interval)))
+                                        interval=interval, arguments=arguments,
+                                        keep_alive=keep_alive, log_name=log_name)))
     if load:
         _launchctl(["bootout", f"gui/{_uid()}/{label}"], tolerate=True)
         _launchctl(["bootstrap", f"gui/{_uid()}", str(target)], tolerate=True)

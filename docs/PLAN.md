@@ -161,5 +161,6 @@ contents-factory/
 ### 9.8 사용자 PC에 항상 켜두기 + 폰 조작 (주원 10/15 확정)
 - **기본 입구 = 에이전트** (Claude Code 또는 Codex). 둘 다 같은 두뇌(`factory wizard`)를 쓴다.
 - **텔레그램은 입구가 아니다.** 역할은 둘뿐: ① 만든 글·이미지·영상을 폰으로 보여주기(인라인 미리보기) ② "올릴까요?" 컨펌 버튼(승인·거절·고쳐줘 한 줄). 발행 결과·장애 알림도 여기로. 대화형 제작은 하지 않는다.
+  - **구현 완료 2026-10-15** (`factory/telegram/`, `factory/review/telegram.py`). `factory telegram setup|status|test|preview|serve|install|remove`. 토큰은 `credentials.env`의 `TELEGRAM_BOT_TOKEN`(숨김 입력·getMe 검증·값 미출력), chat_id는 `/start` 자동 저장(`state/telegram/chat.json`). 미리보기는 글 `<pre>` + sendPhoto + sendVideo(`width=1080 height=1920 supports_streaming=true`, 50MB 초과는 ffmpeg 프리뷰본, 문서첨부 금지). 버튼 3개 콜백 = `cf:ok|no|ed:<item>`(64바이트 상한 사전 검사), 상태 변경은 전부 `QueueStore` 경유. 알림 정책은 🚨(발행 실패·unknown phase·토큰 만료 7일 전) / 📊(`[telegram] summary_at` 일일 요약) / 그 외 무음. `simple = true`면 승인=무장. 데몬 등록은 mac launchd KeepAlive, win·linux는 `serve --once` 1분 주기. **이 맥에서는 `--dry-run`만 실행했고 실제 등록·실발송은 0회다.**
 - 항상 켜두기: Claude Code 사용자는 `factory remote install` → 사용자 PC에 `claude remote-control --name contents-factory --spawn same-dir`를 launchd(mac)/Task Scheduler(win) KeepAlive 등록, 설치 스크립트가 그 폴더에서 `claude`를 1회 열어 워크스페이스 신뢰 기록 → Claude 폰 앱에서 환경 선택해 조작. Codex는 폰 원격 제어 기능 확인 후 되면 같은 방식, 안 되면 "PC에서만 대화, 컨펌은 텔레그램"으로 안내.
 - 공통 전제: PC 켜짐·잠자기 해제. 설치 때 설정 열어주고 첫 화면에 명시. 로그인 세션은 PC에만 있으므로 실행은 PC, 폰은 조작·컨펌.

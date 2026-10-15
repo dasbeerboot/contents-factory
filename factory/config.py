@@ -26,16 +26,36 @@ CONFIG_ENV = "FACTORY_CONFIG"
 UiLang = Literal["ko", "en"]
 ReviewChannel = Literal["terminal", "telegram"]
 AgentName = Literal["claude", "codex"]
+SUMMARY_AT = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]Z?$")
+
+
+class TelegramConfig(BaseModel):
+    """`[telegram]` in factory.toml. Preview and confirm only; see factory/telegram."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # UTC wall clock for the one daily digest. Everything else Telegram sends is
+    # either an alert or an answer to a button, so this is the only schedule.
+    summary_at: str = "21:00Z"
+
+    @field_validator("summary_at")
+    @classmethod
+    def _summary_shape(cls, value: str) -> str:
+        text = str(value).strip()
+        if not SUMMARY_AT.match(text):
+            raise ValueError("summary_at must be HH:MMZ in UTC")
+        return text
 
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ui_lang: UiLang = "ko"
-    # Beginner mode, on by default. The wizard approves and arms in one step instead of
-    # leaving two separate commands for someone who does not know what arming is, and a
-    # failed gate is regenerated for them rather than reported as a code. Everything else
-    # is identical: queueing still never publishes, only a slot does.
+    # Beginner mode (PLAN §9.7), on by default. The wizard approves and arms in one
+    # step instead of leaving two commands for someone who does not know what arming
+    # is, a failed gate is regenerated for them rather than reported as a code, and the
+    # phone asks one question instead of two. Everything else is identical: queueing
+    # still never publishes, only a slot does.
     simple: bool = True
     # Which agent CLI `factory start` launches. Unset means "detect"; the answer is
     # recorded the first time both are installed so the question is asked once.
@@ -48,6 +68,7 @@ class Config(BaseModel):
     default_profile: str = "_example"
     home: str = DEFAULT_HOME
     review: ReviewChannel = "terminal"
+    telegram: TelegramConfig = Field(default_factory=TelegramConfig)
     # Extra repeat_guard corpus files, keyed by profile name ("*" applies to every
     # profile). Point these at the post history of the pipeline this profile is taking
     # over from: without it the guard only knows what this factory itself published, so

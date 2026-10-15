@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
@@ -14,7 +13,8 @@ from ..errors import FactoryError
 from ..scheduler.tick import next_slot
 from ..spec.brief import load_brief
 from ..spec.profile import load_profile
-from ..spec.queue import IN_FLIGHT, Media, QueueItem, parse_stamp, utc_stamp
+from ..spec.queue import (EXTRA_KEY, EXTRA_VALUE_MAX, IN_FLIGHT, Media, QueueItem,
+                          parse_stamp, utc_stamp)
 from .store import QueueStore, new_item_id
 
 
@@ -82,10 +82,6 @@ def _resolve_slot(raw: str, *, slots: tuple[str, ...], now: datetime) -> str:
     if target is None:
         raise FactoryError("NO_SLOT_CONFIGURED")
     return utc_stamp(target)
-
-
-EXTRA_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
-EXTRA_VALUE_MAX = 4000
 
 
 def _parse_extra(raw: Sequence[str]) -> dict[str, str]:

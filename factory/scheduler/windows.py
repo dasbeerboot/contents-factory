@@ -23,6 +23,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import Sequence
 
 from ..config import repo_root
 from ..osinfo import which
@@ -31,6 +32,7 @@ TASK_NAME = "contents-factory-tick"
 DEFAULT_INTERVAL_SECONDS = 900
 MIN_INTERVAL_MINUTES = 1
 MAX_INTERVAL_MINUTES = 1439
+TICK_ARGUMENTS: tuple[str, ...] = ("schedule", "tick")
 
 
 def interval_minutes(seconds: int = DEFAULT_INTERVAL_SECONDS) -> int:
@@ -62,21 +64,26 @@ def quote(part: str) -> str:
 
 
 def action(*, home: Path, python: str | None = None,
-           working_directory: Path | None = None) -> str:
-    """The `/TR` string: cd, set the home, run the tick, append to the log."""
-    log = Path(home) / "logs" / "tick.log"
+           working_directory: Path | None = None,
+           arguments: Sequence[str] = TICK_ARGUMENTS,
+           log_name: str = "tick") -> str:
+    """The `/TR` string: cd, set the home, run the command, append to the log."""
+    log = Path(home) / "logs" / f"{log_name}.log"
     program = " ".join(quote(part) for part in tick_executable(python))
     directory = Path(working_directory or repo_root())
     return (f'cmd /c cd /d "{directory}" && set "FACTORY_HOME={home}" && '
-            f'{program} schedule tick >> "{log}" 2>&1')
+            f'{program} {" ".join(arguments)} >> "{log}" 2>&1')
 
 
 def create_command(*, home: Path, python: str | None = None,
                    interval: int = DEFAULT_INTERVAL_SECONDS,
                    task: str = TASK_NAME,
-                   working_directory: Path | None = None) -> list[str]:
+                   working_directory: Path | None = None,
+                   arguments: Sequence[str] = TICK_ARGUMENTS,
+                   log_name: str = "tick") -> list[str]:
     return ["schtasks", "/Create", "/TN", task, "/TR",
-            action(home=home, python=python, working_directory=working_directory),
+            action(home=home, python=python, working_directory=working_directory,
+                   arguments=arguments, log_name=log_name),
             "/SC", "MINUTE", "/MO", str(interval_minutes(interval)), "/F"]
 
 
@@ -90,10 +97,13 @@ def query_command(task: str = TASK_NAME) -> list[str]:
 
 def install(*, home: Path, python: str | None = None,
             interval: int = DEFAULT_INTERVAL_SECONDS,
-            task: str = TASK_NAME) -> bool:
+            task: str = TASK_NAME,
+            arguments: Sequence[str] = TICK_ARGUMENTS,
+            log_name: str = "tick") -> bool:
     (Path(home) / "logs").mkdir(parents=True, exist_ok=True)
     result = _schtasks(create_command(home=home, python=python, interval=interval,
-                                      task=task))
+                                      task=task, arguments=arguments,
+                                      log_name=log_name))
     return result is not None and result.returncode == 0
 
 

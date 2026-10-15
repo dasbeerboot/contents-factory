@@ -13,6 +13,11 @@ from .brief import BRIEF_ID, Kind
 from .profile import PLATFORMS, LatePolicy
 
 QUEUE_ID = re.compile(r"^q_[0-9]{14}_[a-z0-9]{4}$")
+# Platform specific fields live in `extra`. The key shape is constrained here rather
+# than at the CLI boundary so every writer agrees: a typo has to be an error, not a
+# field that is silently ignored at publish time.
+EXTRA_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+EXTRA_VALUE_MAX = 4000
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 UTC_STAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 Platform = Literal["threads", "instagram", "tiktok", "youtube", "naver_blog"]

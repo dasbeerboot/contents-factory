@@ -134,7 +134,24 @@ factory i18n get media.public_url_required
   tick picks it up.
 - `ENV_MISSING` / `CONNECTOR_ID_MISSING` / `BLOG_ID_MISSING`: route to `/setup`.
 
-## Step 8: tokens
+## Step 8: confirming from a phone
+
+If Telegram is set up, the same approve-then-arm decision can be made from the phone
+instead of here:
+
+```
+factory telegram preview --item q_...    # the item plus three buttons
+```
+
+`올리기 ✅` runs `queue approve`, and in `simple = true` mode also `queue arm --reason
+"telegram:<chat_id>"`. `거절 ❌` runs `unapprove` + `disarm`. `고쳐줘 ✏️` records one line
+for you to act on — **you** redo the draft, the bot does not.
+
+Telegram is preview and confirmation only, never a place to take a new brief. 텔레그램은
+미리보기·컨펌 전용이다. A published item is deliberately silent there; it appears in the
+daily digest. Only failures, `DELIVERY_UNCONFIRMED` and token expiry are pushed.
+
+## Step 9: tokens
 
 The tick prints `token.expiry_warning` from 7 days out.
 

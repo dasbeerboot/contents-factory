@@ -39,6 +39,7 @@ from .spec.format import FormatSpec, catalogue, load_format
 from .spec.profile import (PLATFORMS, PlatformConfig, Profile, list_profiles,
                            load_profile)
 from .spec.queue import QueueItem
+from .telegram import cli as telegram_cli
 from .wizard import cli as wizard_cli
 from .wizard import templates as wizard_templates
 
@@ -207,6 +208,8 @@ def build_parser() -> argparse.ArgumentParser:
     media_host_parser.add_argument("--dry-run", action="store_true",
                                    help="print the request plan without uploading")
 
+    telegram_cli.build_parser(commands)
+
     naver = commands.add_parser("naver", help="naver blog session (playwright backend)")
     naver_actions = naver.add_subparsers(dest="naver_command", required=True)
     naver_login = naver_actions.add_parser(
@@ -304,6 +307,7 @@ def dispatch(config: Config, args: argparse.Namespace) -> int:
         "publish": _publish,
         "media": _media,
         "auth": _auth,
+        "telegram": telegram_cli.run,
         "schedule": _schedule,
         "token": _token,
         "ledger": _ledger,
@@ -1209,6 +1213,10 @@ def _tick(config: Config, *, dry_run: bool) -> int:
         report.warnings.extend(token_refresh.warnings(home, name, lang=config.ui_lang))
     for line in report.as_lines():
         print(line)
+    if not dry_run:
+        # A published item stays off the phone on purpose: it shows up in the daily
+        # digest. Only failures, unconfirmed deliveries and dying tokens buzz.
+        telegram_cli.notify_tick(config, report)
     return EXIT_OK if not report.errors else EXIT_ERROR
 
 
