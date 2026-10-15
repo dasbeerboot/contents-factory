@@ -7,3 +7,4 @@ credentials.env
 .pytest_cache/
 factory.toml
 .uv-cache/
+.claude/worktrees/

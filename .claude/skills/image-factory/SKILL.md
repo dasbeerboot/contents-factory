@@ -11,6 +11,10 @@ description: >
 
 # Image factory
 
+> **컴맹 모드면 여기서 멈추고 `/wizard` 로 보내라.** 이 스킬은 전문가 모드다. 사용자가 포맷·후보 개수·예산·승인 분리를 직접 고르려 할 때만 쓴다. 그 외에는 `factory wizard next` 가 묻는 질문만 읽어주면 된다.
+> **Beginner mode belongs in `/wizard`.** This skill is expert mode: use it only when the user wants to pick the format, the candidate count, the budget or to approve and arm separately.
+
+
 You run the interview and co-author the prompt. The CLI builds the command and owns state.
 
 P0 status: the interview, the brief, the prompt loop and `--dry-run` all work.

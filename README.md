@@ -92,6 +92,56 @@ with the install line for the current OS.
 
 탐색은 전부 `shutil.which` + `.exe`·`.cmd` 접미 허용이라 Windows에서 `ffmpeg.exe` 도 잡힌다.
 
+## 🧭 처음 쓰는 사람 / Beginner flow (PLAN §9)
+
+**CLI가 두뇌, 에이전트는 입과 손, 사용자는 대답만 한다.** 포맷·게이트·예산을 모르는 사람이
+혼자 끝까지 갈 수 있는 경로가 기본값이다.
+
+```sh
+factory start                 # doctor → 에이전트(claude/codex) 감지 → 위저드로 열기
+factory start --no-launch     # 띄우지 않고 명령만 출력
+```
+
+에이전트는 판단하지 않는다. `factory wizard next` 가 내주는 질문 하나를 사용자 언어로
+읽어주고, 사용자가 한 말을 `factory wizard answer` 로 넘기는 것만 반복한다. 그 계약이
+레포 루트의 **`CLAUDE.md` 와 `AGENTS.md`(같은 내용)** 이고, Claude Code 쪽 입구는
+`.claude/skills/wizard/`(`/wizard`)다.
+
+```sh
+factory wizard next [--json] [--dry-run]       # 지금 물어볼 질문 1개
+factory wizard answer --id <id> --value "<사용자가 한 말>"
+factory wizard skip | back | status
+factory wizard reset [--flow setup|make]
+```
+
+| 플로우 | 단계 | 묻는 것 |
+|---|---|---|
+| `setup` | 7 | 컴퓨터 → 언어 2개 → 이름·한 줄 소개·말투 → 올릴 곳(복수) → 고른 곳마다 연결(할 일 1개 + 확인 명령) → 시간대 → "첫 글 만들까요?" |
+| `make` | 4 | 무엇(글/이미지/영상/말로 설명) → 주제 한 줄 + 첨부 → 초안 보여주고 이대로/고쳐줘/다시 → 언제 |
+
+- 말투 3지선다가 `persona.md`·`writer_rules.md`·`brand.md` 를 만든다 (`factory profile template`).
+- 시간대 답은 **사용자 로컬 시각**으로 받아 UTC 슬롯으로 변환해 `platforms.json` 에 쓴다
+  (`factory profile platform`).
+- 포맷과 플랫폼은 **묻지 않는다.** 종류와 프로필에서 CLI가 정한다.
+- 자유문 답(선택지 밖)은 Anthropic 키가 있으면 haiku(`claude-haiku-4-5-20251001`)로
+  선택지에 매핑하고, 키가 없으면 사람 말 한 줄로 재질문한다. "아직 안했어요" 를 yes로 읽지
+  않도록 부정 표현을 먼저 본다.
+- `simple = true`(기본)면 큐 적재 때 승인+무장을 한 번에 하고, 게이트 FAIL은 최대 2회
+  자동 재생성한 뒤 사람 말로 사유를 알려준다. `simple = false` 면 기존처럼 승인·무장이
+  따로다. **어느 쪽이든 큐 적재는 발행이 아니고, 발행은 슬롯이 한다.**
+- 상태는 `~/.contents-factory/state/wizard.json` 하나이고 `factory wizard` 만 쓴다.
+
+### 오류는 코드 하나당 할 일 하나 / Error dictionary
+
+```sh
+factory explain HIGGSFIELD_LOGIN_REQUIRED
+factory explain --list                      # 사전에 있는 전체 코드
+```
+
+`factory/i18n/errors.{ko,en}.json` 에 코드별 `{human, action, command}` 가 있다 (286개,
+`FactoryError` 로 던지는 코드 전수 + tick 판정·게이트 위반·HTTP 코드). 위저드와 발행 실패
+경로가 같은 사전을 읽고, 실패한 명령은 **코드 한 줄 + 사람 말 한 줄**을 같이 낸다.
+
 ## 🚨 상태파일은 CLI로만 / State is CLI-only
 
 `~/.contents-factory/` 밑(`queue/`, `briefs/`, `state/`)은 **`factory` 명령만** 쓴다.
@@ -106,10 +156,22 @@ the json is how the scheduler dies.
 ```
 factory init [--os macos|windows|linux]
 factory doctor [--json]                  # OS·파이썬·바이너리 6종·CLI 로그인·스케줄러
+factory start [--agent claude|codex] [--no-launch]   # doctor → 에이전트 → 위저드
+factory wizard next [--json] [--dry-run] | answer --id <id> --value "..."
+                  | skip | back | status | reset [--flow setup|make]
+factory explain <CODE> [--lang ko|en] [--json] | --list
+factory key set --profile X --name KEY [--stdin]   # 값은 숨김 입력, 출력 안 함
+factory key list --profile X [--json]              # 키 이름과 설정 여부만
 factory profile add <name> [--from _example] | list | show [name]
+factory profile template --profile X --brand "이름" --intro "한 줄"
+                  --tone warm|dry|playful          # persona·writer_rules·brand 생성
+factory profile platform --profile X --platform threads [--enable|--disable]
+                  [--slot 12:00Z ...] [--daily-cap N] [--blog-id ID]
+                  [--connector-id ID] [--account-id ID]   # platforms.json 소유자
 factory brief new --kind text --format threads_post [--profile X] [--answers file|-]
                   [--force]   # id 는 b_<UTC초>_<4자>, 기존 id 덮으려면 --force
 factory brief show --brief b_...
+factory brief revise --brief b_... --note "<고칠 내용 한 줄>"   # prompt_final 누적
 factory gen text  --brief b_... [--dry-run]
 factory gen image --brief b_... [--dry-run]   # 실제 higgsfield 호출, --dry-run은 argv만
 factory gen video --brief b_... [--stage script|still|clip|tts|captions|assemble|all]
@@ -491,7 +553,12 @@ WARN을 남긴다.
 ```
 factory/
   cli.py __main__.py config.py credentials.py errors.py ledger.py
-  i18n/{ko,en}.json           인터뷰·리포트 문구 (영문 점표기 키)
+  i18n/{ko,en}.json           인터뷰·리포트·위저드 문구 (영문 점표기 키)
+  i18n/errors.{ko,en}.json    코드별 {human, action, command} 사전
+  explain.py                  factory explain — 사전 읽기, 미등록 코드 폴백
+  start.py                    factory start — doctor → 에이전트 감지·실행
+  wizard/{questions,engine,apply,state,classify,templates,cli}.py
+                              컴맹 플로우. 질문 카탈로그·상태머신·부수효과·상태파일
   auth/{base,threads,instagram}.py   OAuth 동의 URL·code 교환·credentials 기록
   spec/{brief,profile,queue,format}.py
   formats/{text,image,video}/*.yaml
@@ -509,7 +576,9 @@ factory/
   scheduler/windows.py        Windows Task Scheduler (schtasks)
   review/terminal.py
 profiles/_example/            영문 예시 페르소나 (사주 아님)
+.claude/skills/wizard/SKILL.md          컴맹 입구 (/wizard). 나머지 6종은 전문가 모드
 .claude/skills/{setup,profile,writing-factory,image-factory,video-factory,publish}/SKILL.md
+CLAUDE.md AGENTS.md           에이전트 중립 계약 (같은 내용, 60줄 이내)
 tests/
 ```
 

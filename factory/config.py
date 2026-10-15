@@ -25,12 +25,21 @@ CONFIG_ENV = "FACTORY_CONFIG"
 
 UiLang = Literal["ko", "en"]
 ReviewChannel = Literal["terminal", "telegram"]
+AgentName = Literal["claude", "codex"]
 
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ui_lang: UiLang = "ko"
+    # Beginner mode, on by default. The wizard approves and arms in one step instead of
+    # leaving two separate commands for someone who does not know what arming is, and a
+    # failed gate is regenerated for them rather than reported as a code. Everything else
+    # is identical: queueing still never publishes, only a slot does.
+    simple: bool = True
+    # Which agent CLI `factory start` launches. Unset means "detect"; the answer is
+    # recorded the first time both are installed so the question is asked once.
+    agent: AgentName | None = None
     # The host OS this home was set up on. Absent means "whatever this machine
     # looks like today", which is right for a fresh clone and wrong for a home
     # that was configured once, so `factory init` writes the answer down.
@@ -113,22 +122,52 @@ def os_line(os_name: str) -> str:
     return f'os = "{os_name}"'
 
 
-def write_os(path: Path, os_name: str) -> str:
-    """Record the chosen OS in a factory.toml, replacing any existing line."""
-    line = os_line(os_name)
+# Keys the wizard is allowed to answer into factory.toml. Anything else is a hand edit.
+WRITABLE_KEYS: tuple[str, ...] = ("os", "ui_lang", "content_lang", "default_profile",
+                                  "review", "simple", "agent")
+
+
+def toml_line(key: str, value: object) -> str:
+    if key not in WRITABLE_KEYS:
+        raise FactoryError("CONFIG_INVALID", key[:32])
+    if key == "os":
+        return os_line(str(value))
+    if isinstance(value, bool):
+        return f"{key} = {'true' if value else 'false'}"
+    text = str(value)
+    if not re.match(r"^[A-Za-z0-9_\-./~ ]{0,120}$", text):
+        raise FactoryError("CONFIG_INVALID", key[:32])
+    return f'{key} = "{text}"'
+
+
+def write_keys(path: Path, values: dict[str, object]) -> Path:
+    """Replace or append flat `key = value` lines in a factory.toml.
+
+    The wizard records answers here instead of asking the user to open an editor, so
+    this has to be idempotent and has to leave the comments in the file alone. Only
+    `WRITABLE_KEYS` are accepted; a table or a list is a hand edit, not an answer.
+    """
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
         text = ""
-    pattern = re.compile(r"^\s*os\s*=.*$", re.M)
-    if pattern.search(text):
-        text = pattern.sub(line, text)
-    else:
-        if text and not text.endswith("\n"):
-            text += "\n"
-        text = f"{line}\n{text}" if text else f"{line}\n"
+    for key, value in values.items():
+        line = toml_line(key, value)
+        pattern = re.compile(rf"^\s*{re.escape(key)}\s*=.*$", re.M)
+        if pattern.search(text):
+            text = pattern.sub(line, text, count=1)
+        else:
+            if text and not text.endswith("\n"):
+                text += "\n"
+            text = f"{line}\n{text}" if text else f"{line}\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+    return path
+
+
+def write_os(path: Path, os_name: str) -> str:
+    """Record the chosen OS in a factory.toml, replacing any existing line."""
+    write_keys(path, {"os": os_name})
     return os_name
 
 
@@ -152,6 +191,20 @@ def find_config_file(start: Path | None = None) -> Path | None:
         if path.is_file():
             return path
     return None
+
+
+def config_targets(config: Config) -> list[Path]:
+    """Every factory.toml this run would read, home first.
+
+    The config that loaded may live in the repo, in the home, or wherever
+    FACTORY_CONFIG points. An answer written to one of them and not the others is an
+    answer that disappears on the next command, so the wizard writes all of them.
+    """
+    found: list[Path] = [config.home_path / CONFIG_FILENAME]
+    current = find_config_file()
+    if current is not None and current not in found:
+        found.append(current)
+    return found
 
 
 def load_config(path: Path | None = None) -> Config:

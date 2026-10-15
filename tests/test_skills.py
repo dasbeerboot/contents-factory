@@ -7,8 +7,10 @@ from pathlib import Path
 import pytest
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent / ".claude" / "skills"
-EXPECTED = {"setup", "profile", "writing-factory", "image-factory", "video-factory",
-            "publish"}
+EXPERT = {"setup", "profile", "writing-factory", "image-factory", "video-factory",
+          "publish"}
+# `wizard` is the beginner entrance and the default; the six above are expert mode.
+EXPECTED = EXPERT | {"wizard"}
 FRONTMATTER = re.compile(r"^---\n(.*?)\n---\n", re.S)
 
 
@@ -28,8 +30,31 @@ def frontmatter(path: Path) -> tuple[str, str]:
     return name.group(1), description.group(1)
 
 
-def test_all_six_skills_exist() -> None:
+def test_all_seven_skills_exist() -> None:
     assert {path.parent.name for path in skill_files()} == EXPECTED
+
+
+@pytest.mark.parametrize("path", [p for p in skill_files()
+                                  if p.parent.name in EXPERT],
+                         ids=lambda p: p.parent.name)
+def test_every_expert_skill_sends_a_beginner_to_the_wizard(path: Path) -> None:
+    """A beginner who lands in an expert skill gets asked about budgets and formats,
+    which is exactly what PLAN §9 exists to avoid. Each one says so at the top."""
+    body = path.read_text(encoding="utf-8")
+    head = body.split("## ")[0]
+    assert "/wizard" in head, "the pointer has to be above the first section"
+    assert "factory wizard next" in head
+
+
+def test_the_wizard_skill_owns_the_loop_and_the_two_flows() -> None:
+    body = (SKILLS_DIR / "wizard" / "SKILL.md").read_text(encoding="utf-8")
+    for phrase in ("factory wizard next", "factory wizard answer --id",
+                   "factory wizard skip", "factory wizard back",
+                   "factory wizard status", "factory explain",
+                   "state/wizard.json", "setup", "make"):
+        assert phrase in body, phrase
+    assert "Never invent a question" in body
+    assert "--value" in body
 
 
 @pytest.mark.parametrize("path", skill_files(), ids=lambda p: p.parent.name)

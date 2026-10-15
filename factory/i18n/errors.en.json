@@ -1,0 +1,1432 @@
+{
+  "ACCOUNT_ID_INVALID": {
+    "action": "Copy the account id shown by the platform.",
+    "command": "",
+    "human": "That account id is not valid."
+  },
+  "AGENT_AMBIGUOUS": {
+    "action": "Pick one once.",
+    "command": "factory start --agent claude",
+    "human": "Both agents are installed and no choice is recorded."
+  },
+  "AGENT_LAUNCH_FAILED": {
+    "action": "Paste the printed command into the terminal yourself.",
+    "command": "factory start --no-launch",
+    "human": "Launching the agent failed."
+  },
+  "AGENT_MISSING": {
+    "action": "Install Claude Code.",
+    "command": "npm i -g @anthropic-ai/claude-code",
+    "human": "No agent CLI is installed on this machine."
+  },
+  "AGENT_UNKNOWN": {
+    "action": "Use claude or codex.",
+    "command": "factory start --agent claude",
+    "human": "That agent name is unknown."
+  },
+  "ALREADY_PUBLISHED": {
+    "action": "Nothing to do.",
+    "command": "",
+    "human": "This item is already published."
+  },
+  "ANSWERS_NOT_JSON": {
+    "action": "Pass one JSON object.",
+    "command": "",
+    "human": "The answers payload is not JSON."
+  },
+  "APP_ID_INVALID": {
+    "action": "Copy the numeric app id from the Meta console.",
+    "command": "",
+    "human": "That app id does not look valid."
+  },
+  "APP_ID_REQUIRED": {
+    "action": "Pass it as an option or save it in the profile.",
+    "command": "factory auth threads --profile <프로필> --app-id <ID>",
+    "human": "The Meta app id is missing."
+  },
+  "ARM_NEEDS_APPROVAL": {
+    "action": "Approve it first.",
+    "command": "factory queue approve --item <q_...>",
+    "human": "Arming requires approval first."
+  },
+  "ARM_REASON_REQUIRED": {
+    "action": "Write one line in your own words.",
+    "command": "factory queue arm --item <q_...> --reason \"<이유>\"",
+    "human": "Arming needs a reason string."
+  },
+  "ASIDE_TIMEOUT": {
+    "action": "Restart the aside window and retry.",
+    "command": "factory naver status",
+    "human": "aside did not answer in time."
+  },
+  "ASIDE_UNAVAILABLE": {
+    "action": "Start aside and leave a signed-in Naver tab open.",
+    "command": "factory naver status",
+    "human": "The aside browser did not answer."
+  },
+  "ASPECT_UNSUPPORTED": {
+    "action": "Pick a supported ratio.",
+    "command": "factory formats --kind image --format free",
+    "human": "The model does not support that aspect ratio."
+  },
+  "ASSET_DOWNLOAD_FAILED": {
+    "action": "Check the URL opens and retry.",
+    "command": "",
+    "human": "The asset could not be downloaded."
+  },
+  "ASSET_EMPTY": {
+    "action": "Check the source and download again.",
+    "command": "",
+    "human": "The downloaded file is empty."
+  },
+  "ASSET_TOO_LARGE": {
+    "action": "Reduce the resolution or length.",
+    "command": "",
+    "human": "The file is larger than the upload limit."
+  },
+  "ASSET_URL_INVALID": {
+    "action": "Use an https address.",
+    "command": "",
+    "human": "That asset URL is not valid."
+  },
+  "AUTH_COMMAND_UNKNOWN": {
+    "action": "Use threads or instagram.",
+    "command": "factory auth threads --profile <프로필>",
+    "human": "That is not an auth subcommand."
+  },
+  "AUTH_NOT_IMPLEMENTED": {
+    "action": "Follow the manual steps in setup.",
+    "command": "",
+    "human": "Automatic connect is not implemented for this platform."
+  },
+  "BEFORE_INVALID": {
+    "action": "Use 2026-10-15T12:00:00Z.",
+    "command": "",
+    "human": "That cutoff timestamp is not valid."
+  },
+  "BLOG_ID_INVALID": {
+    "action": "Use letters, digits and hyphens only.",
+    "command": "",
+    "human": "That blog id is not valid."
+  },
+  "BLOG_ID_MISSING": {
+    "action": "Set the blog id on the profile's Naver block.",
+    "command": "factory profile platform --profile <프로필> --platform naver_blog --blog-id <ID>",
+    "human": "The Naver blog id is not in the profile."
+  },
+  "BODY_NOT_JSON": {
+    "action": "Retry.",
+    "command": "",
+    "human": "The response body could not be read."
+  },
+  "BOXES_REQUIRED": {
+    "action": "Run the captions stage to produce them.",
+    "command": "factory gen video --brief <b_...> --stage captions",
+    "human": "No caption boxes, so the safe zone gate was skipped."
+  },
+  "BOX_INVALID": {
+    "action": "Write it as x,y,width,height.",
+    "command": "",
+    "human": "That caption box is not valid."
+  },
+  "BRIEF_COMMAND_UNKNOWN": {
+    "action": "Use new or show.",
+    "command": "",
+    "human": "That is not a brief subcommand."
+  },
+  "BRIEF_EXISTS": {
+    "action": "Pass --force to overwrite.",
+    "command": "",
+    "human": "A brief with that id already exists."
+  },
+  "BRIEF_ID_INVALID": {
+    "action": "Use the full id starting with b_.",
+    "command": "",
+    "human": "That brief id is not valid."
+  },
+  "BRIEF_INVALID": {
+    "action": "Undo any hand edit and make a new one.",
+    "command": "",
+    "human": "The brief does not match the schema."
+  },
+  "BRIEF_KIND_INVALID": {
+    "action": "Choose one of the three.",
+    "command": "",
+    "human": "The kind is not text, image or video."
+  },
+  "BRIEF_MISSING": {
+    "action": "Check the id.",
+    "command": "",
+    "human": "No brief with that id."
+  },
+  "BRIEF_OUTPUT_MISSING": {
+    "action": "Generate first.",
+    "command": "factory gen text --brief <b_...>",
+    "human": "There is no output at that index yet."
+  },
+  "BUDGET_EXCEEDED": {
+    "action": "Raise the cap or choose a shorter, cheaper setting.",
+    "command": "factory ledger summary --days 7",
+    "human": "This item would pass its credit cap."
+  },
+  "CAPTION_FONT_MISSING": {
+    "action": "Install a system font or point at another.",
+    "command": "",
+    "human": "The caption font was not found."
+  },
+  "CAPTION_FRAMES_MISSING": {
+    "action": "Finish the clip stage first.",
+    "command": "",
+    "human": "There are no frames to draw captions on."
+  },
+  "CARDS_INVALID": {
+    "action": "Re-run the captions stage.",
+    "command": "",
+    "human": "The caption cards file could not be read."
+  },
+  "CARDS_MISSING": {
+    "action": "Run the captions stage first.",
+    "command": "factory gen video --brief <b_...> --stage captions",
+    "human": "The caption cards file is missing."
+  },
+  "CAROUSEL_SIZE_INVALID": {
+    "action": "Use between 2 and 10 slides.",
+    "command": "",
+    "human": "The carousel size is outside the rules."
+  },
+  "CATEGORY_REQUIRED": {
+    "action": "Pass it as an extra field.",
+    "command": "",
+    "human": "A category is required."
+  },
+  "CHARS_OFF_TARGET": {
+    "action": "Bring it closer to the target length.",
+    "command": "",
+    "human": "The length is far from the target."
+  },
+  "CHARS_OVER": {
+    "action": "Cut a sentence or two.",
+    "command": "",
+    "human": "The text is longer than the platform allows."
+  },
+  "CHARS_UNDER": {
+    "action": "Add one more sentence.",
+    "command": "",
+    "human": "The text is shorter than the format wants."
+  },
+  "CLASSIFY_FAILED": {
+    "action": "Pick one of the choices instead.",
+    "command": "",
+    "human": "Classifying the answer failed."
+  },
+  "CLASSIFY_UNAVAILABLE": {
+    "action": "Pick one of the choices instead.",
+    "command": "factory key set --profile <프로필> --name ANTHROPIC_API_KEY",
+    "human": "There is no key to classify a free-form answer."
+  },
+  "CODE_INVALID": {
+    "action": "Paste the full address right after approving.",
+    "command": "factory auth threads --profile <프로필>",
+    "human": "No code was found in what you pasted."
+  },
+  "CODE_MISSING": {
+    "action": "Paste the whole redirected URL again.",
+    "command": "factory auth threads --profile <프로필>",
+    "human": "Nothing was pasted."
+  },
+  "CODE_TOO_LONG": {
+    "action": "Paste only the URL from the address bar.",
+    "command": "",
+    "human": "What you pasted is too long."
+  },
+  "COMMAND_UNKNOWN": {
+    "action": "Check the help output.",
+    "command": "factory --help",
+    "human": "No such command."
+  },
+  "CONFIG_INVALID": {
+    "action": "Undo the last edit or recreate it from factory.toml.example.",
+    "command": "factory doctor",
+    "human": "factory.toml could not be parsed."
+  },
+  "CONNECTOR_ID_MISSING": {
+    "action": "Set the connector id on the profile's TikTok block.",
+    "command": "factory profile platform --profile <프로필> --platform tiktok --connector-id <ID>",
+    "human": "The TikTok connector id is not in the profile."
+  },
+  "CONSENT_DENIED": {
+    "action": "Open it again and allow every requested scope.",
+    "command": "factory auth threads --profile <프로필>",
+    "human": "The consent screen was declined."
+  },
+  "CONTAINER_FAILED": {
+    "action": "Check the media URL is publicly reachable.",
+    "command": "factory media host --item <q_...> --dry-run",
+    "human": "The platform failed to process the media container."
+  },
+  "CONTAINER_ID_INVALID": {
+    "action": "Queue it again and send from the start.",
+    "command": "",
+    "human": "The container id is not valid."
+  },
+  "CONTAINER_IN_PROGRESS": {
+    "action": "The next tick finishes it; leave it alone.",
+    "command": "",
+    "human": "The platform is still processing the media container."
+  },
+  "COUNT_INVALID": {
+    "action": "Use 1 to 20.",
+    "command": "",
+    "human": "That count is out of range."
+  },
+  "CRONTAB_WRITE_FAILED": {
+    "action": "Check permissions and retry.",
+    "command": "factory schedule status",
+    "human": "Writing the crontab failed."
+  },
+  "CTA_IN_BODY": {
+    "action": "Move it to the closing line.",
+    "command": "",
+    "human": "The ask sits in the body."
+  },
+  "CTA_OVER": {
+    "action": "Keep one; three asks get none done.",
+    "command": "",
+    "human": "There is more than one ask."
+  },
+  "DAILY_CAP": {
+    "action": "Move it to tomorrow or raise the cap.",
+    "command": "factory queue reschedule <q_...> --slot next",
+    "human": "Today's cap for this platform is used up."
+  },
+  "DELIVERY_CONTENT_CHANGED": {
+    "action": "Queue it again as a new item.",
+    "command": "",
+    "human": "The content changed after delivery started, so it stopped."
+  },
+  "DELIVERY_IN_PROGRESS": {
+    "action": "Wait for it to finish.",
+    "command": "factory queue list --pending",
+    "human": "A delivery is in flight."
+  },
+  "DELIVERY_MAY_BE_PUBLISHED": {
+    "action": "Check the platform first; if the post is there, leave it.",
+    "command": "",
+    "human": "Reopening was refused because it may already be live."
+  },
+  "DELIVERY_UNCONFIRMED": {
+    "action": "Check the platform yourself and report what you saw.",
+    "command": "factory queue reopen --item <q_...> --reason \"<확인 내용>\"",
+    "human": "This delivery is unconfirmed, so nothing is retried automatically."
+  },
+  "DIMENSIONS_UNREADABLE": {
+    "action": "Check the file is intact.",
+    "command": "",
+    "human": "The frame size could not be read."
+  },
+  "DIR_PERMISSION_UNSET": {
+    "action": "Set it to owner-only yourself.",
+    "command": "",
+    "human": "The directory could not be locked down."
+  },
+  "DOCTOR_BLOCKED": {
+    "action": "Run the install line doctor printed.",
+    "command": "factory doctor",
+    "human": "Something required is still missing."
+  },
+  "DOCUMENT_TOO_LARGE": {
+    "action": "Shorten the body or use fewer images.",
+    "command": "",
+    "human": "The document is larger than the Naver editor accepts."
+  },
+  "DRAFT_EMPTY": {
+    "action": "Generate again.",
+    "command": "",
+    "human": "The model returned an empty draft."
+  },
+  "DRAFT_NOT_JSON": {
+    "action": "Generate again; if it repeats, shorten the prompt.",
+    "command": "",
+    "human": "The model response was not in the agreed shape."
+  },
+  "DRAFT_REPLIES_INVALID": {
+    "action": "Generate again.",
+    "command": "",
+    "human": "The replies field was the wrong shape."
+  },
+  "DRY_RUN": {
+    "action": "Run it without --dry-run to go live.",
+    "command": "",
+    "human": "This was a dry run, so nothing was sent."
+  },
+  "DUPLICATE_EXACT": {
+    "action": "Use that item, or write a different angle.",
+    "command": "factory queue list --pending",
+    "human": "This exact copy is already in the queue."
+  },
+  "DUPLICATE_NGRAM": {
+    "action": "Change the structure, not a few sentences.",
+    "command": "factory queue list --pending",
+    "human": "It overlaps an item in the queue heavily."
+  },
+  "DUPLICATE_SENTENCE": {
+    "action": "Change that sentence.",
+    "command": "factory queue list --pending",
+    "human": "A sentence is identical to one in the queue."
+  },
+  "DURATION_SPLIT_INVALID": {
+    "action": "Adjust the target length.",
+    "command": "",
+    "human": "The duration cannot be split into takes."
+  },
+  "DURATION_TOO_SHORT": {
+    "action": "Lengthen the script or raise the duration.",
+    "command": "",
+    "human": "The video is too short."
+  },
+  "DURATION_UNREADABLE": {
+    "action": "Check the file is intact.",
+    "command": "",
+    "human": "The duration could not be read."
+  },
+  "EDITOR_FRAME_TIMEOUT": {
+    "action": "Check the login state and retry.",
+    "command": "factory naver status",
+    "human": "The Naver editor frame never appeared."
+  },
+  "EDITOR_TAB_MISSING": {
+    "action": "Open the editor page in the browser and retry.",
+    "command": "factory naver status",
+    "human": "The Naver editor tab was not found."
+  },
+  "EMOJI": {
+    "action": "Use fewer.",
+    "command": "",
+    "human": "There are more emoji than allowed."
+  },
+  "EMPTY_CONTENT": {
+    "action": "Add body text or media.",
+    "command": "",
+    "human": "There is nothing to send."
+  },
+  "EM_DASH": {
+    "action": "Replace it with a comma or a full stop.",
+    "command": "",
+    "human": "This format forbids the em dash."
+  },
+  "ENDCARD_TEXT_MISSING": {
+    "action": "Add the end card line to the profile brand file.",
+    "command": "",
+    "human": "The end card line is missing."
+  },
+  "ENDCARD_TOO_LONG": {
+    "action": "Cut it to one line.",
+    "command": "",
+    "human": "The end card line is too long."
+  },
+  "ENV_KEY_INVALID": {
+    "action": "Retype the key name in capitals.",
+    "command": "factory key set --profile <프로필> --name <KEY>",
+    "human": "That key name is not valid; use capitals and underscores only."
+  },
+  "ENV_MISSING": {
+    "action": "Save the key named in the detail into the profile.",
+    "command": "factory key set --profile <프로필> --name <KEY>",
+    "human": "A credential key this step needs is not in the profile yet."
+  },
+  "EXCHANGE_URL_INVALID": {
+    "action": "Pass an https URL.",
+    "command": "",
+    "human": "The exchange URL is not valid."
+  },
+  "EXPLAIN_CODE_INVALID": {
+    "action": "Pass the uppercase code as printed.",
+    "command": "factory explain ENV_MISSING",
+    "human": "That is not an error code."
+  },
+  "EXTRA_KEY_DUPLICATE": {
+    "action": "Keep one.",
+    "command": "",
+    "human": "The same extra field was given twice."
+  },
+  "EXTRA_KEY_INVALID": {
+    "action": "Use lowercase and underscores.",
+    "command": "",
+    "human": "That extra field name is not valid."
+  },
+  "EXTRA_VALUE_TOO_LONG": {
+    "action": "Shorten it.",
+    "command": "",
+    "human": "That extra field value is too long."
+  },
+  "FACE_NOT_FOUND": {
+    "action": "Re-make it with the face visible, or skip this gate.",
+    "command": "",
+    "human": "No face was found in the video."
+  },
+  "FACE_TOO_LONG": {
+    "action": "Judge it on the montage, not the number alone.",
+    "command": "",
+    "human": "The face proportions drift from the reference."
+  },
+  "FASTSTART_MISSING": {
+    "action": "Re-run the assemble stage.",
+    "command": "factory gen video --brief <b_...> --stage assemble",
+    "human": "The video is not arranged for streaming."
+  },
+  "FFMPEG_FAILED": {
+    "action": "Re-run the stage, then retry it with --force.",
+    "command": "factory gen video --brief <b_...> --stage assemble --force",
+    "human": "ffmpeg exited with an error."
+  },
+  "FFMPEG_MISSING": {
+    "action": "Install ffmpeg; doctor prints the line for this OS.",
+    "command": "factory doctor",
+    "human": "ffmpeg, which every video step uses, is not installed."
+  },
+  "FFMPEG_TIMEOUT": {
+    "action": "Close heavy apps and re-run just that stage.",
+    "command": "factory gen video --brief <b_...> --stage assemble",
+    "human": "ffmpeg ran past its time budget and was stopped."
+  },
+  "FIDELITY_LOW": {
+    "action": "Render the narration again from the script.",
+    "command": "factory gen video --brief <b_...> --stage tts",
+    "human": "What was spoken drifted from the approved script."
+  },
+  "FILE_ACL_UNSET": {
+    "action": "Check the folder permissions yourself.",
+    "command": "",
+    "human": "The ACL call failed; the key was still saved."
+  },
+  "FILE_ACL_USER_UNKNOWN": {
+    "action": "The key was saved; check folder permissions.",
+    "command": "",
+    "human": "The user to grant could not be determined."
+  },
+  "FILE_PERMISSION_UNSET": {
+    "action": "Set it to owner-only yourself.",
+    "command": "",
+    "human": "The credentials file could not be locked down."
+  },
+  "FILLERS": {
+    "action": "Take them out of the script.",
+    "command": "",
+    "human": "There are too many filler words."
+  },
+  "FIRST_LINE_WORDS_OVER": {
+    "action": "Cut the first line shorter.",
+    "command": "",
+    "human": "The first line is too long to hook anyone."
+  },
+  "FORMAT_INVALID": {
+    "action": "Undo the last edit to that yaml.",
+    "command": "",
+    "human": "The format file is invalid."
+  },
+  "FORMAT_KIND_MISMATCH": {
+    "action": "Match the kind and the format.",
+    "command": "factory formats --kind video",
+    "human": "The format kind does not match the request."
+  },
+  "FORMAT_MISSING": {
+    "action": "Pick one from the catalogue.",
+    "command": "factory formats --kind text",
+    "human": "No such format."
+  },
+  "FORMAT_PATH_MISMATCH": {
+    "action": "Rename the file to match.",
+    "command": "",
+    "human": "The format file name and its contents disagree."
+  },
+  "FRAME_EXTRACT_FAILED": {
+    "action": "Check the file and retry.",
+    "command": "",
+    "human": "Frame extraction failed."
+  },
+  "FRAME_JUMP": {
+    "action": "Discard that take and re-make it.",
+    "command": "",
+    "human": "One frame jumps."
+  },
+  "FRAME_SAMPLE_EMPTY": {
+    "action": "Re-run that stage.",
+    "command": "",
+    "human": "The extracted frame is empty."
+  },
+  "FROZEN_BG": {
+    "action": "Put camera motion in the prompt and re-make it.",
+    "command": "",
+    "human": "The background never moves."
+  },
+  "FROZEN_LIMB": {
+    "action": "Change the arm pose in the still and re-make it.",
+    "command": "",
+    "human": "An arm never moves in the clip."
+  },
+  "GATE_DEPS_MISSING": {
+    "action": "Install the video extras once.",
+    "command": "uv sync --extra video",
+    "human": "The extra packages the video gates need are missing."
+  },
+  "H2_UNDER": {
+    "action": "Add subheadings to break it up.",
+    "command": "",
+    "human": "There are too few subheadings."
+  },
+  "HASHTAGS": {
+    "action": "Use fewer.",
+    "command": "",
+    "human": "There are more hashtags than allowed."
+  },
+  "HIGGSFIELD_CLI_MISSING": {
+    "action": "Install the higgsfield CLI.",
+    "command": "factory doctor",
+    "human": "The higgsfield CLI, used for image and video generation, is missing."
+  },
+  "HIGGSFIELD_COST_UNREADABLE": {
+    "action": "Retry shortly; nothing runs without a quote.",
+    "command": "",
+    "human": "The quote could not be read, so the paid call was stopped."
+  },
+  "HIGGSFIELD_EMPTY_OUTPUT": {
+    "action": "Adjust the prompt and generate again.",
+    "command": "",
+    "human": "Higgsfield returned no output file."
+  },
+  "HIGGSFIELD_FAILED": {
+    "action": "Re-run the stage shortly; the failed take is discarded.",
+    "command": "factory gen image --brief <b_...>",
+    "human": "The Higgsfield job came back failed."
+  },
+  "HIGGSFIELD_LOGIN_REQUIRED": {
+    "action": "Log in again in the browser.",
+    "command": "higgsfield auth login",
+    "human": "The Higgsfield login has expired."
+  },
+  "HIGGSFIELD_OUTPUT_INVALID": {
+    "action": "Update the CLI and retry.",
+    "command": "factory doctor",
+    "human": "The Higgsfield response could not be read."
+  },
+  "HIGGSFIELD_TIMEOUT": {
+    "action": "Retry shortly; check the ledger for credits.",
+    "command": "factory ledger summary --days 1",
+    "human": "Waiting for Higgsfield timed out."
+  },
+  "HOME_MISSING": {
+    "action": "Run the one-time init.",
+    "command": "factory init",
+    "human": "The runtime home has not been created yet."
+  },
+  "HOST_TAB_MISSING": {
+    "action": "Open the page in the browser again.",
+    "command": "",
+    "human": "The host browser tab is gone."
+  },
+  "HTTP_400": {
+    "action": "Check the body length and media format.",
+    "command": "",
+    "human": "The platform rejected the request shape."
+  },
+  "HTTP_401": {
+    "action": "Re-connect that platform.",
+    "command": "factory auth threads --profile <프로필>",
+    "human": "The credentials have expired."
+  },
+  "HTTP_403": {
+    "action": "Check the app scopes and the account role.",
+    "command": "",
+    "human": "Access was denied."
+  },
+  "HTTP_404": {
+    "action": "Check the account id and post id.",
+    "command": "",
+    "human": "The platform could not find the target."
+  },
+  "HTTP_422": {
+    "action": "Check the media spec and body rules.",
+    "command": "",
+    "human": "The platform could not process the content."
+  },
+  "HTTP_429": {
+    "action": "Wait and retry later.",
+    "command": "",
+    "human": "Too many requests; you are rate limited."
+  },
+  "I18N_COMMAND_UNKNOWN": {
+    "action": "Use get, keys or missing.",
+    "command": "",
+    "human": "That is not an i18n subcommand."
+  },
+  "IDENTITY_SOURCE_MISSING": {
+    "action": "Set a reference image on the profile.",
+    "command": "",
+    "human": "There is no source to compare against."
+  },
+  "IMAGE_UPLOAD_UNSUPPORTED": {
+    "action": "Host it as a public URL first.",
+    "command": "factory media host --item <q_...>",
+    "human": "This route cannot upload an image."
+  },
+  "IMPORT_NO_HOSTED_URL": {
+    "action": "Host the media first.",
+    "command": "factory media host --item <q_...>",
+    "human": "There is no hosted URL to import from."
+  },
+  "IMPORT_NO_MEDIA_ID": {
+    "action": "Retry.",
+    "command": "",
+    "human": "The import response had no media id."
+  },
+  "INIT_NO_LOCATION": {
+    "action": "Run init from the repo directory.",
+    "command": "factory init",
+    "human": "There was nowhere to write the config."
+  },
+  "ITEM_REQUIRED": {
+    "action": "Pass the queue id.",
+    "command": "factory queue list --pending",
+    "human": "The command needs an item id."
+  },
+  "KEY_COMMAND_UNKNOWN": {
+    "action": "Use set or list.",
+    "command": "factory key list --profile <프로필>",
+    "human": "That is not a key subcommand."
+  },
+  "KEY_VALUE_EMPTY": {
+    "action": "Paste it again; it stays hidden.",
+    "command": "factory key set --profile <프로필> --name <KEY>",
+    "human": "The pasted key was empty."
+  },
+  "KIND_REQUIRED": {
+    "action": "Pass text, image or video.",
+    "command": "factory formats --kind text",
+    "human": "The command needs a kind."
+  },
+  "LATE_CARRIED": {
+    "action": "Nothing to do; the next slot takes it.",
+    "command": "factory schedule status",
+    "human": "It missed its slot and was carried once."
+  },
+  "LATE_CARRY_EXHAUSTED": {
+    "action": "Queue it again on a new slot.",
+    "command": "factory queue reschedule <q_...> --slot next",
+    "human": "The one carry was already used, so it was dropped."
+  },
+  "LATE_DROPPED": {
+    "action": "Queue it again on a new slot if you still want it.",
+    "command": "factory queue reschedule <q_...> --slot next",
+    "human": "It missed its slot and was dropped."
+  },
+  "LATE_NO_SLOT": {
+    "action": "Add a slot time to the profile.",
+    "command": "factory profile platform --profile <프로필> --platform threads --slot 12:00Z",
+    "human": "There is no next slot to carry to."
+  },
+  "LEDGER_OP_REQUIRED": {
+    "action": "Pass the op key so one job bills once.",
+    "command": "",
+    "human": "A charge record needs an idempotency key."
+  },
+  "LIMB_MOVES": {
+    "action": "Nothing to do.",
+    "command": "",
+    "human": "Arm movement was detected."
+  },
+  "LINKS": {
+    "action": "Drop it, or move it to a reply.",
+    "command": "",
+    "human": "This format does not allow links."
+  },
+  "LOG_NO_MISSING": {
+    "action": "Nothing to do.",
+    "command": "",
+    "human": "There is no id to log."
+  },
+  "MCP_TOOL_ERROR": {
+    "action": "Check the CLI login and retry.",
+    "command": "higgsfield auth login",
+    "human": "The Higgsfield tool call failed."
+  },
+  "MEDIA_COMMAND_UNKNOWN": {
+    "action": "Use host.",
+    "command": "factory media host --item <q_...>",
+    "human": "That is not a media subcommand."
+  },
+  "MEDIA_FILE_MISSING": {
+    "action": "Check the path; it may have moved.",
+    "command": "",
+    "human": "The file is not at that path."
+  },
+  "MEDIA_ID_MISSING": {
+    "action": "Upload again.",
+    "command": "",
+    "human": "The upload response had no media id."
+  },
+  "MEDIA_INDEX_INVALID": {
+    "action": "Check how many media entries the item has.",
+    "command": "factory queue list --json",
+    "human": "There is no media entry at that index."
+  },
+  "MEDIA_PUBLIC_URL_INVALID": {
+    "action": "Use an https address.",
+    "command": "",
+    "human": "That public URL is not valid."
+  },
+  "MEDIA_PUBLIC_URL_PARTIAL": {
+    "action": "Host the remaining ones too.",
+    "command": "factory media host --item <q_...> --index 1",
+    "human": "Only some media entries have a public URL."
+  },
+  "MEDIA_PUBLIC_URL_REQUIRED": {
+    "action": "Host the media to get a public URL.",
+    "command": "factory media host --item <q_...>",
+    "human": "This platform fetches media from a public URL."
+  },
+  "MEDIA_REQUIRED": {
+    "action": "Generate that stage first or pass a file path.",
+    "command": "",
+    "human": "There is no rendered file to measure."
+  },
+  "MENTIONS": {
+    "action": "Use fewer.",
+    "command": "",
+    "human": "There are more mentions than allowed."
+  },
+  "ME_FAILED": {
+    "action": "Make sure the browser is signed in as the right account and retry.",
+    "command": "",
+    "human": "The account lookup failed."
+  },
+  "MORPH_BG": {
+    "action": "Discard that take and re-make it.",
+    "command": "",
+    "human": "The background moves but warps."
+  },
+  "MULTIPLE_EDITOR_TABS": {
+    "action": "Close all but one.",
+    "command": "",
+    "human": "More than one Naver editor tab is open."
+  },
+  "NAVER_BACKEND_UNKNOWN": {
+    "action": "Set it to aside or playwright.",
+    "command": "factory profile show <프로필>",
+    "human": "The Naver backend setting is not a known value."
+  },
+  "NAVER_COMMAND_UNKNOWN": {
+    "action": "Use login or status.",
+    "command": "factory naver status",
+    "human": "That is not a naver subcommand."
+  },
+  "NAVER_PROFILE_MISSING": {
+    "action": "Opening the login window creates it.",
+    "command": "factory naver login",
+    "human": "The Naver browser profile directory does not exist."
+  },
+  "NAVER_SCRIPT_MISSING": {
+    "action": "Check the repo is intact; the file may have been deleted.",
+    "command": "factory doctor",
+    "human": "The bundled Naver script file is missing."
+  },
+  "NAVER_SESSION_MISSING": {
+    "action": "Open the login window and sign in yourself.",
+    "command": "factory naver login",
+    "human": "The Naver session is gone."
+  },
+  "NETWORK_UNREACHABLE": {
+    "action": "Check the connection and retry.",
+    "command": "",
+    "human": "The network could not be reached."
+  },
+  "NODE_MISSING": {
+    "action": "Install node.",
+    "command": "factory doctor",
+    "human": "node, which the Naver publisher needs, is not installed."
+  },
+  "NODE_RESULT_INVALID": {
+    "action": "Check the login state and try again.",
+    "command": "factory naver status",
+    "human": "The Naver script response could not be read."
+  },
+  "NODE_RESULT_MISSING": {
+    "action": "Check the login state and try again.",
+    "command": "factory naver status",
+    "human": "The Naver script returned no result."
+  },
+  "NODE_TIMEOUT": {
+    "action": "Close the browser window and try again.",
+    "command": "factory naver status",
+    "human": "The Naver browser step did not finish in time."
+  },
+  "NOT_APPROVED": {
+    "action": "Approve it and the slot will publish it.",
+    "command": "factory queue approve --item <q_...>",
+    "human": "This item is not approved yet."
+  },
+  "NOT_ARMED": {
+    "action": "Arm it with your own words as the reason.",
+    "command": "factory queue arm --item <q_...> --reason \"<이유>\"",
+    "human": "Approved but not armed, so the tick will not publish it."
+  },
+  "NOT_DUE": {
+    "action": "Wait; it goes out at the slot.",
+    "command": "factory schedule status",
+    "human": "The slot has not arrived yet."
+  },
+  "NOT_ENOUGH_FRAMES": {
+    "action": "Make the clip longer or check the file.",
+    "command": "",
+    "human": "There are too few frames to measure."
+  },
+  "NOT_ENOUGH_SAMPLES": {
+    "action": "Make the clip longer.",
+    "command": "",
+    "human": "Too few samples to judge."
+  },
+  "NOT_IMPLEMENTED": {
+    "action": "Check it by eye for now.",
+    "command": "",
+    "human": "This gate is not implemented yet and was skipped."
+  },
+  "NO_ARM_BLOB": {
+    "action": "Re-make it with the arm inside the frame.",
+    "command": "",
+    "human": "No arm was found in frame, so nothing was judged."
+  },
+  "NO_ARM_BLOB_SUPPRESSED": {
+    "action": "Nothing to do.",
+    "command": "",
+    "human": "The arm is out of frame, so the gate passed through."
+  },
+  "NO_BOXES_SUPPLIED": {
+    "action": "Pass the boxes.",
+    "command": "",
+    "human": "No caption boxes were supplied."
+  },
+  "NO_CAPTION_CARDS": {
+    "action": "Check the script has spoken lines.",
+    "command": "",
+    "human": "There are no captions to draw."
+  },
+  "NO_CLIP_OUTPUT": {
+    "action": "Re-run that stage.",
+    "command": "factory gen video --brief <b_...> --stage clip",
+    "human": "No video clip came out."
+  },
+  "NO_CLIP_PARTS": {
+    "action": "Finish the clip stage first.",
+    "command": "factory gen video --brief <b_...> --stage clip",
+    "human": "There are no clip parts to join."
+  },
+  "NO_FRAMES": {
+    "action": "Check the file is intact.",
+    "command": "",
+    "human": "No frames could be extracted."
+  },
+  "NO_IMAGE_OUTPUT": {
+    "action": "Adjust the prompt and generate again.",
+    "command": "",
+    "human": "No image came out."
+  },
+  "NO_PARTS": {
+    "action": "Finish the earlier stage first.",
+    "command": "",
+    "human": "There is nothing to assemble."
+  },
+  "NO_REFERENCE_IMAGE": {
+    "action": "Set one on the profile.",
+    "command": "factory profile show <프로필>",
+    "human": "There is no reference image to compare against."
+  },
+  "NO_SLOT_CONFIGURED": {
+    "action": "Add a slot time to the profile.",
+    "command": "factory profile platform --profile <프로필> --platform threads --slot 12:00Z",
+    "human": "No slot is configured for this platform."
+  },
+  "NO_SPEECH": {
+    "action": "Re-run the narration stage.",
+    "command": "factory gen video --brief <b_...> --stage tts",
+    "human": "No speech was detected."
+  },
+  "NO_SPOKEN_LINES": {
+    "action": "Check the script.",
+    "command": "",
+    "human": "There are no spoken lines."
+  },
+  "NO_STILL_OUTPUT": {
+    "action": "Re-run that stage.",
+    "command": "factory gen video --brief <b_...> --stage still",
+    "human": "The first frame still did not render."
+  },
+  "NO_VIDEO_STREAM": {
+    "action": "Check it is actually a video.",
+    "command": "",
+    "human": "The file has no video stream."
+  },
+  "OAUTH_EXCHANGE_FAILED": {
+    "action": "Check the app id and redirect URL, then retry.",
+    "command": "factory auth threads --profile <프로필>",
+    "human": "The token exchange failed."
+  },
+  "OAUTH_NO_TOKEN": {
+    "action": "Start the consent flow again.",
+    "command": "factory auth threads --profile <프로필>",
+    "human": "The exchange response carried no token."
+  },
+  "OS_UNKNOWN": {
+    "action": "Answer macOS, Windows or Linux.",
+    "command": "factory init --os macos",
+    "human": "That operating system name is not one I know."
+  },
+  "OUTPUT_REFUSED": {
+    "action": "Rephrase the request or change the topic.",
+    "command": "",
+    "human": "The model refused to write this."
+  },
+  "OUTPUT_TRUNCATED": {
+    "action": "Ask for something shorter.",
+    "command": "",
+    "human": "The response hit the length limit and was cut."
+  },
+  "PARAGRAPH_CHARS_OVER": {
+    "action": "Split it in two.",
+    "command": "",
+    "human": "A paragraph is too long."
+  },
+  "PHOTO_COUNT_INVALID": {
+    "action": "Adjust the number of photos.",
+    "command": "",
+    "human": "The photo count is outside the platform rules."
+  },
+  "PLATFORM_MISMATCH": {
+    "action": "Check the item's platform in the list.",
+    "command": "factory queue list --pending",
+    "human": "The item's platform is not the one in the command."
+  },
+  "PLATFORM_UNKNOWN": {
+    "action": "Use threads, instagram, tiktok, youtube or naver_blog.",
+    "command": "",
+    "human": "That platform name is unknown."
+  },
+  "PLAYWRIGHT_BROWSER_MISSING": {
+    "action": "Download Chromium once.",
+    "command": "npx playwright install chromium",
+    "human": "The Chromium build Playwright drives is missing."
+  },
+  "PLAYWRIGHT_LAUNCH_FAILED": {
+    "action": "Close other windows using the same profile and retry.",
+    "command": "factory naver login",
+    "human": "The browser failed to launch."
+  },
+  "PLAYWRIGHT_LOAD_FAILED": {
+    "action": "Point FACTORY_PLAYWRIGHT_MODULE at it or reinstall.",
+    "command": "npm install -g playwright",
+    "human": "Playwright is installed but failed to load."
+  },
+  "PLAYWRIGHT_MISSING": {
+    "action": "Install Playwright globally.",
+    "command": "npm install -g playwright",
+    "human": "Playwright, which opens the Naver window, is not installed."
+  },
+  "POST_ID_INVALID": {
+    "action": "Check the platform response.",
+    "command": "",
+    "human": "The returned post id is not valid."
+  },
+  "PREPARE_FAIL": {
+    "action": "Retry shortly.",
+    "command": "",
+    "human": "The prepare step failed."
+  },
+  "PREPARE_NO_PUBLISH_TOKEN": {
+    "action": "Check the Higgsfield login and retry.",
+    "command": "higgsfield auth login",
+    "human": "The prepare step returned no publish token."
+  },
+  "PRIVACY_INVALID": {
+    "action": "Choose private, unlisted or public.",
+    "command": "",
+    "human": "That privacy value is not valid."
+  },
+  "PROBE_UNREADABLE": {
+    "action": "Check ffprobe is installed.",
+    "command": "factory doctor",
+    "human": "The media could not be probed."
+  },
+  "PROFILE_COMMAND_UNKNOWN": {
+    "action": "Use add, list, show, template or platform.",
+    "command": "factory profile list",
+    "human": "That is not a profile subcommand."
+  },
+  "PROFILE_EXISTS": {
+    "action": "Use another name.",
+    "command": "factory profile list",
+    "human": "A profile with that name already exists."
+  },
+  "PROFILE_INVALID": {
+    "action": "Undo the last edit to that profile file.",
+    "command": "factory profile show <프로필>",
+    "human": "A profile file does not match the schema."
+  },
+  "PROFILE_MISSING": {
+    "action": "Check the name in the profile list.",
+    "command": "factory profile list",
+    "human": "No such profile."
+  },
+  "PROMPT_REQUIRED": {
+    "action": "Write one line about what to make.",
+    "command": "",
+    "human": "The prompt is empty."
+  },
+  "PROMPT_TEMPLATE_MISSING": {
+    "action": "Use the free format and write the prompt.",
+    "command": "",
+    "human": "This format has no prompt template."
+  },
+  "PROVIDER_JOB_ID_MISSING": {
+    "action": "Generate again.",
+    "command": "",
+    "human": "No provider job id came back, so the run stopped to avoid a double charge."
+  },
+  "PUBLISHED_FLAG_MISSING": {
+    "action": "The flag was repaired; nothing was re-posted.",
+    "command": "",
+    "human": "It was published but the flag was missing."
+  },
+  "PUBLISH_AT_INVALID": {
+    "action": "Use a future time, and only while the item is private.",
+    "command": "",
+    "human": "That scheduled publish time is not allowed."
+  },
+  "PUBLISH_FAIL": {
+    "action": "Read the companion code and fix that first.",
+    "command": "",
+    "human": "Publishing failed."
+  },
+  "PUBLISH_FAILED": {
+    "action": "Read the companion code and fix that first.",
+    "command": "",
+    "human": "Publishing failed."
+  },
+  "PUBLISH_MINUTE_NOT_TEN": {
+    "action": "Round the minutes to 00, 10, 20 and so on.",
+    "command": "",
+    "human": "YouTube only accepts ten minute increments."
+  },
+  "PUBLISH_NOT_SENT": {
+    "action": "Fix the named cause and retry; nothing was double posted.",
+    "command": "",
+    "human": "Nothing was sent."
+  },
+  "QUEUE_ALREADY_PUBLISHED": {
+    "action": "Make a new one; published items are not edited.",
+    "command": "",
+    "human": "This item was already published."
+  },
+  "QUEUE_COMMAND_UNKNOWN": {
+    "action": "Use add, list, approve, arm or disarm.",
+    "command": "factory queue list --pending",
+    "human": "That is not a queue subcommand."
+  },
+  "QUEUE_FILE_INVALID": {
+    "action": "Undo any hand edit.",
+    "command": "",
+    "human": "A queue file is corrupt."
+  },
+  "QUEUE_ID_DUPLICATE": {
+    "action": "Add it again; the CLI makes the id.",
+    "command": "",
+    "human": "That queue id already exists."
+  },
+  "QUEUE_ID_IMMUTABLE": {
+    "action": "Add a new item instead.",
+    "command": "",
+    "human": "A queue id cannot be changed."
+  },
+  "QUEUE_ID_INVALID": {
+    "action": "Use the full id starting with q_.",
+    "command": "factory queue list --pending",
+    "human": "That queue id is not valid."
+  },
+  "QUEUE_ITEM_INVALID": {
+    "action": "Undo any hand edit; only the CLI writes the queue.",
+    "command": "factory queue list --json",
+    "human": "A queue item does not match the schema."
+  },
+  "QUEUE_ITEM_MISSING": {
+    "action": "Check the id in the queue list.",
+    "command": "factory queue list --pending",
+    "human": "No queue item with that id."
+  },
+  "REDIRECT_URI_INVALID": {
+    "action": "Match the registered URL character for character.",
+    "command": "",
+    "human": "The redirect URL is not valid."
+  },
+  "REFERENCE_FACE_NOT_FOUND": {
+    "action": "Use a reference where the face is large.",
+    "command": "",
+    "human": "No face was found in the reference image."
+  },
+  "REFERENCE_MISSING": {
+    "action": "Check the path or drop the reference.",
+    "command": "",
+    "human": "A reference file was not found."
+  },
+  "REMOTE_REJECTED": {
+    "action": "Read the companion code; usually a scope or format problem.",
+    "command": "",
+    "human": "The platform rejected the request."
+  },
+  "REOPEN_REASON_REQUIRED": {
+    "action": "Write what you saw on the platform.",
+    "command": "factory queue reopen --item <q_...> --reason \"<확인 내용>\"",
+    "human": "Reopening needs what you checked."
+  },
+  "REPEAT_BLOCK": {
+    "action": "Rewrite the structure, not the words.",
+    "command": "factory gate run --brief <b_...> --gate repeat_guard",
+    "human": "The copy overlaps something already posted, so it was blocked."
+  },
+  "REPLY_TOO_LONG": {
+    "action": "Shorten the reply.",
+    "command": "",
+    "human": "A reply is over the platform limit."
+  },
+  "RESUME_CANCEL_MISSING": {
+    "action": "Queue it again.",
+    "command": "",
+    "human": "There is nothing to resume."
+  },
+  "RESUME_CONTAINER": {
+    "action": "Nothing to do; it is not created twice.",
+    "command": "",
+    "human": "An existing media container is being reused."
+  },
+  "RULES_NAME_INVALID": {
+    "action": "Use a name from docs/rules.",
+    "command": "",
+    "human": "That rules document name is not valid."
+  },
+  "SCHEDULE_COMMAND_UNKNOWN": {
+    "action": "Use install, remove, status or tick.",
+    "command": "factory schedule status",
+    "human": "That is not a schedule subcommand."
+  },
+  "SCHTASKS_WRITE_FAILED": {
+    "action": "Retry from an elevated prompt.",
+    "command": "factory schedule status",
+    "human": "Registering the scheduled task failed."
+  },
+  "SCOPE_CHECK_UNAVAILABLE": {
+    "action": "Proceed, but check the first publish with --dry-run.",
+    "command": "factory publish threads --item <q_...> --dry-run",
+    "human": "The scope list could not be verified."
+  },
+  "SCOPE_MISSING": {
+    "action": "Re-run consent and allow the publishing scope too.",
+    "command": "factory auth threads --profile <프로필>",
+    "human": "The publish scope was missing, so the token was not saved."
+  },
+  "SCRIPT_GATE_FAILED": {
+    "action": "Change only the slots inside the template.",
+    "command": "factory gen video --brief <b_...> --stage script",
+    "human": "The script left the approved template, so nothing rendered."
+  },
+  "SLOT_INVALID": {
+    "action": "Use next or 2026-10-15T12:00:00Z.",
+    "command": "",
+    "human": "That slot value is not valid."
+  },
+  "SLOT_MISSING": {
+    "action": "Give a slot or use next.",
+    "command": "",
+    "human": "The slot is empty."
+  },
+  "SOUL_ID_REQUIRED": {
+    "action": "Put one on the profile or use another model.",
+    "command": "",
+    "human": "This model needs a Soul id."
+  },
+  "STAGE_INPUT_MISSING": {
+    "action": "Run the earlier stage first.",
+    "command": "factory gen video --brief <b_...>",
+    "human": "The input this stage needs is missing."
+  },
+  "STAGE_UNKNOWN": {
+    "action": "Use script, still, clip, tts, captions or assemble.",
+    "command": "",
+    "human": "That stage name does not exist."
+  },
+  "STT_ENGINE_MISSING": {
+    "action": "Save the transcription key on the profile.",
+    "command": "factory key set --profile <프로필> --name ELEVENLABS_API_KEY",
+    "human": "The transcription key is missing."
+  },
+  "STT_REQUEST_FAILED": {
+    "action": "Retry shortly.",
+    "command": "",
+    "human": "The transcription request failed."
+  },
+  "STT_TRANSCRIPT_EMPTY": {
+    "action": "Check the video actually has audio.",
+    "command": "",
+    "human": "The transcript came back empty."
+  },
+  "STT_TRANSCRIPT_MISSING": {
+    "action": "Re-run that gate.",
+    "command": "",
+    "human": "The transcript file is missing."
+  },
+  "TAGS_REQUIRED": {
+    "action": "Pass them as an extra field.",
+    "command": "factory queue add --platform youtube --extra tags=\"<태그>\"",
+    "human": "Tags are required."
+  },
+  "TAKE_PROMPT_COUNT": {
+    "action": "Re-run the script stage.",
+    "command": "",
+    "human": "The take count and prompt count disagree."
+  },
+  "TEXT_REQUIRED": {
+    "action": "Pass the text or a brief.",
+    "command": "",
+    "human": "There is no text to check."
+  },
+  "TEXT_TOO_LONG": {
+    "action": "Shorten the body.",
+    "command": "",
+    "human": "The body is over the platform limit."
+  },
+  "TIKTOK_NOT_CONNECTED": {
+    "action": "Log in to Higgsfield and connect the TikTok account.",
+    "command": "higgsfield auth login",
+    "human": "No TikTok account is connected."
+  },
+  "TITLE_REQUIRED": {
+    "action": "Pass it as an extra field.",
+    "command": "factory queue add --platform youtube --extra title=\"<제목>\"",
+    "human": "A title is required."
+  },
+  "TOKEN_REFRESH_FAILED": {
+    "action": "Re-connect the account to store a fresh token.",
+    "command": "factory auth threads --profile <프로필>",
+    "human": "The token refresh failed."
+  },
+  "TONE_UNKNOWN": {
+    "action": "Choose warm, dry or playful.",
+    "command": "",
+    "human": "That tone is not one of the choices."
+  },
+  "TOO_MANY_REFERENCES": {
+    "action": "Keep only the important ones.",
+    "command": "",
+    "human": "There are more references than the model accepts."
+  },
+  "TTS_AUDIO_MISSING": {
+    "action": "Re-run that stage.",
+    "command": "factory gen video --brief <b_...> --stage tts",
+    "human": "The narration audio file is missing."
+  },
+  "TTS_CHARS_EXCEEDED": {
+    "action": "Shorten the script.",
+    "command": "",
+    "human": "The narration is over the character budget."
+  },
+  "TTS_NO_LINES": {
+    "action": "Put spoken lines in the script.",
+    "command": "",
+    "human": "There are no lines to speak."
+  },
+  "TTS_REQUEST_FAILED": {
+    "action": "Check the key and the balance, then retry.",
+    "command": "factory key list --profile <프로필>",
+    "human": "The narration request failed."
+  },
+  "TTS_TEXT_EMPTY": {
+    "action": "Re-run the script stage.",
+    "command": "",
+    "human": "The line to speak is empty."
+  },
+  "UNEXPECTED": {
+    "action": "Run the same command again; if it repeats, report it.",
+    "command": "factory doctor",
+    "human": "Something unexpected happened."
+  },
+  "VIDEO_ID_MISSING": {
+    "action": "Check the upload on YouTube directly.",
+    "command": "",
+    "human": "The upload response had no video id."
+  },
+  "VOICE_ID_MISSING": {
+    "action": "Add it to the profile voice block.",
+    "command": "",
+    "human": "The voice id is not on the profile."
+  },
+  "WIZARD_ANSWER_INVALID": {
+    "action": "Pick one of the choices.",
+    "command": "factory wizard next",
+    "human": "That answer could not be read."
+  },
+  "WIZARD_BACK_EMPTY": {
+    "action": "Answer the current question.",
+    "command": "factory wizard next",
+    "human": "There is no earlier question to go back to."
+  },
+  "WIZARD_COMMAND_UNKNOWN": {
+    "action": "Use next, answer, skip, back, status or reset.",
+    "command": "factory wizard status",
+    "human": "That is not a wizard subcommand."
+  },
+  "WIZARD_DRAFT_MISSING": {
+    "action": "Fetch the next question to build one.",
+    "command": "factory wizard next",
+    "human": "There is no draft to show yet."
+  },
+  "WIZARD_FLOW_UNKNOWN": {
+    "action": "Use setup or make.",
+    "command": "factory wizard status",
+    "human": "No such wizard flow."
+  },
+  "WIZARD_NO_PLATFORM": {
+    "action": "Pick platforms in the setup flow.",
+    "command": "factory wizard reset --flow setup",
+    "human": "No platform is enabled."
+  },
+  "WIZARD_NO_QUESTION": {
+    "action": "Reset it to start over.",
+    "command": "factory wizard reset --flow make",
+    "human": "There is no next question; this flow is finished."
+  },
+  "WIZARD_OUT_OF_ORDER": {
+    "action": "Fetch the next question and answer that id.",
+    "command": "factory wizard next",
+    "human": "That is not the question on the table."
+  },
+  "WIZARD_SKIP_REFUSED": {
+    "action": "An answer is required to move on.",
+    "command": "factory wizard next",
+    "human": "This question cannot be skipped."
+  },
+  "WIZARD_STATE_INVALID": {
+    "action": "Reset to start over.",
+    "command": "factory wizard reset",
+    "human": "The wizard state file could not be read."
+  },
+  "WORD_REPEATS": {
+    "action": "Vary the wording.",
+    "command": "",
+    "human": "A word repeats too often."
+  },
+  "WPM_HIGH": {
+    "action": "Shorten the script or slow the pacing.",
+    "command": "",
+    "human": "The narration is too fast."
+  },
+  "WPM_LOW": {
+    "action": "Add script or cut the pauses.",
+    "command": "",
+    "human": "The narration is too slow."
+  }
+}

@@ -77,6 +77,36 @@
 - [ ] ❌ CTA 로테이션 적용 로직 (`platforms.json cta_rotation`)
 - [ ] ❌ 미구현 게이트 SKIP 해소: text_legibility·logo_geometry·product_identity
 
+## 컴맹 플로우 (PLAN §9) — 두뇌 완료 2026-10-15
+
+- [x] ✅ `factory wizard` 상태머신 — setup 7단계 / make 4단계, next·answer·skip·back·
+      status·reset, 상태는 `state/wizard.json` 하나 (`factory/wizard/{questions,engine,
+      apply,state,cli}.py`). 답 저장은 전부 기존 CLI 경로(init·profile·brief·gen·gate·
+      queue)를 in-process 로 호출하고 `ran` 에 실행한 명령을 그대로 돌려준다
+- [x] ✅ 말투 3지선다 → persona·writer_rules·brand 생성 (`factory profile template`,
+      `wizard/templates.py`)
+- [x] ✅ 슬롯 질문 — 아침/점심/저녁/직접을 **로컬 시각으로 받아 UTC 변환** 후
+      `platforms.json` 기록 (`factory profile platform` 이 그 파일의 소유 명령)
+- [x] ✅ 포맷·플랫폼 자동 선택 (종류 × 프로필 enabled, 사용자에게 안 물음)
+- [x] ✅ 자유문 분류 haiku-4-5 (`wizard/classify.py`), 키 없으면 재질문.
+      부정 표현 우선 판정 — "아직 안했어요" 를 yes 로 읽던 버그 실측 후 수정
+- [x] ✅ `simple = true` (기본) — 큐 적재 때 승인+무장 동시, 게이트 FAIL 자동 재생성 2회,
+      실패 시 사람 말 한 줄. `simple = false` 는 기존 분리 동작
+- [x] ✅ 에러 사전 286개 (`factory/i18n/errors.{ko,en}.json`) + `factory explain <CODE>`.
+      `FactoryError` 코드 203개 전수 + tick 판정·게이트 위반·HTTP. 위저드와 publish 실패
+      경로가 같은 사전을 읽고, 실패 출력은 코드 + 사람 말 한 줄
+- [x] ✅ `factory start` — doctor → 에이전트 감지(claude/codex, 둘 다면 1회 질문 후
+      `factory.toml agent` 기록) → 레포에서 `claude "/wizard"` / `codex "factory wizard를
+      시작해"` 실행, `--no-launch` 는 명령만 (`factory/start.py`)
+- [x] ✅ `factory key set|list` — 값은 getpass 숨김 입력, 출력·argv 에 절대 안 들어감
+- [x] ✅ `CLAUDE.md` = `AGENTS.md` (동일 59줄, 한영 병기) + `.claude/skills/wizard/`,
+      기존 스킬 6종 머리에 "컴맹이면 /wizard" 1줄
+- [x] ✅ pytest 599 passed (이전 399 → +200)
+- [ ] ❌ `install.sh` / `install.ps1` + 바탕화면 런처 (.command/.bat) — PLAN §9.1
+- [ ] ❌ `factory remote install` (launchd/Task Scheduler KeepAlive) — PLAN §9.8
+- [ ] ❌ 텔레그램 미리보기·컨펌 봇 (`factory/telegram/`) — 별도 세션 진행 중
+- [ ] ❌ 지인 1명 실측: `factory start` → setup 7문항 → 첫 글 발행까지 혼자 가는지
+
 ## P2
 - [ ] ❌ 영상 리뷰 sendVideo 인라인
 - [ ] ❌ 테이크 접합부 FRAME_JUMP (멀티테이크 실측에 남은 유일한 bg_motion 위반)

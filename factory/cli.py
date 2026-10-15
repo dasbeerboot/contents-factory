@@ -12,11 +12,13 @@ from pathlib import Path
 from typing import Sequence
 
 from . import doctor as doctor_module
+from . import explain as explain_module
 from . import i18n, ledger, osinfo, rules
+from . import start as start_module
 from .auth import instagram as instagram_auth
 from .auth import threads as threads_auth
 from .config import Config, init_home, load_config, repo_root
-from .credentials import load_profile_env
+from .credentials import credentials_path, env_set, load_env, load_profile_env
 from .errors import FactoryError
 from .gates import (bg_motion, caption_safe_zone, cta_single, duplicate_copy,
                     forbidden_words, identity, limb_motion, limits,
@@ -34,8 +36,11 @@ from .scheduler import cron, launchd, tick, token_refresh, windows
 from .spec.brief import (Brief, Output, load_brief, new_brief_id, parse_brief,
                          save_brief, utc_now)
 from .spec.format import FormatSpec, catalogue, load_format
-from .spec.profile import Profile, list_profiles, load_profile
+from .spec.profile import (PLATFORMS, PlatformConfig, Profile, list_profiles,
+                           load_profile)
 from .spec.queue import QueueItem
+from .wizard import cli as wizard_cli
+from .wizard import templates as wizard_templates
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -57,7 +62,25 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_parser.add_argument("--json", dest="as_json", action="store_true",
                                help="machine readable report")
 
-    profile = commands.add_parser("profile", help="profile add/list/show")
+    start_parser = commands.add_parser(
+        "start", help="doctor, then open the agent on the wizard")
+    start_parser.add_argument("--agent", choices=list(start_module.AGENTS),
+                              help="which agent CLI; recorded in factory.toml")
+    start_parser.add_argument("--no-launch", dest="no_launch", action="store_true",
+                              help="print the command instead of running it")
+
+    explain_parser = commands.add_parser(
+        "explain", help="one error code: what happened, what to do, which command")
+    explain_parser.add_argument("code")
+    explain_parser.add_argument("--lang", choices=["ko", "en"])
+    explain_parser.add_argument("--json", dest="as_json", action="store_true")
+    explain_parser.add_argument("--list", dest="as_list", action="store_true",
+                                help="every code in the dictionary")
+
+    wizard_cli.build_parser(commands)
+
+    profile = commands.add_parser(
+        "profile", help="profile add/list/show/template/platform")
     profile_actions = profile.add_subparsers(dest="profile_command", required=True)
     profile_add = profile_actions.add_parser("add")
     profile_add.add_argument("name")
@@ -65,6 +88,37 @@ def build_parser() -> argparse.ArgumentParser:
     profile_actions.add_parser("list")
     profile_show = profile_actions.add_parser("show")
     profile_show.add_argument("name", nargs="?")
+    profile_template = profile_actions.add_parser(
+        "template", help="write persona.md, writer_rules.md and brand.md from one tone")
+    profile_template.add_argument("--profile", required=True)
+    profile_template.add_argument("--brand", required=True)
+    profile_template.add_argument("--intro", default="")
+    profile_template.add_argument("--tone", required=True,
+                                  choices=list(wizard_templates.TONES))
+    profile_platform = profile_actions.add_parser(
+        "platform", help="enable a platform and set its slots (writes platforms.json)")
+    profile_platform.add_argument("--profile", required=True)
+    profile_platform.add_argument("--platform", required=True, choices=list(PLATFORMS))
+    profile_platform.add_argument("--enable", action="store_true")
+    profile_platform.add_argument("--disable", action="store_true")
+    profile_platform.add_argument("--slot", action="append", default=[],
+                                  help="UTC slot like 12:00Z; repeatable, replaces the list")
+    profile_platform.add_argument("--daily-cap", dest="daily_cap", type=int)
+    profile_platform.add_argument("--blog-id", dest="blog_id")
+    profile_platform.add_argument("--connector-id", dest="connector_id")
+    profile_platform.add_argument("--account-id", dest="account_id")
+
+    key = commands.add_parser("key", help="credentials.env keys: set (hidden) / list names")
+    key_actions = key.add_subparsers(dest="key_command", required=True)
+    key_set = key_actions.add_parser(
+        "set", help="paste one key; the value is hidden and never printed")
+    key_set.add_argument("--profile")
+    key_set.add_argument("--name", required=True)
+    key_set.add_argument("--stdin", action="store_true",
+                         help="read the value from stdin instead of a hidden prompt")
+    key_list = key_actions.add_parser("list", help="key names and whether they are set")
+    key_list.add_argument("--profile")
+    key_list.add_argument("--json", dest="as_json", action="store_true")
 
     brief = commands.add_parser("brief", help="brief new/show")
     brief_actions = brief.add_subparsers(dest="brief_command", required=True)
@@ -77,6 +131,11 @@ def build_parser() -> argparse.ArgumentParser:
                            help="overwrite a brief that already has this id")
     brief_show = brief_actions.add_parser("show")
     brief_show.add_argument("--brief", required=True)
+    brief_revise = brief_actions.add_parser(
+        "revise", help="append one correction to prompt_final and count the round")
+    brief_revise.add_argument("--brief", required=True)
+    brief_revise.add_argument("--note", required=True,
+                              help="the user's own words, quoted, not a rewrite")
 
     gen = commands.add_parser("gen", help="gen text/image/video")
     gen_actions = gen.add_subparsers(dest="gen_command", required=True)
@@ -111,6 +170,10 @@ def build_parser() -> argparse.ArgumentParser:
     gate_run.add_argument("--media",
                           help="file for stt_wpm/limb_motion/bg_motion/identity; "
                                "defaults to the brief's rendered output")
+    gate_run.add_argument("--json", dest="as_json", action="store_true",
+                          help="rows as json; the media gates only run once, so a "
+                               "caller that needs both the table and the codes uses "
+                               "this and renders the table itself")
 
     queue_cli.build_parser(commands)
 
@@ -208,11 +271,17 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+    language = i18n.FALLBACK_LANG
     try:
         config = load_config()
+        language = config.ui_lang
         return dispatch(config, args)
     except FactoryError as error:
+        # The code first, so machine readers and the wizard's parser keep working, then
+        # the dictionary line, because a bare code is a dead end for whoever is reading.
         sys.stderr.write(f"{error}\n")
+        sys.stderr.write(explain_module.line(error.code, language,
+                                             detail=error.detail) + "\n")
         return EXIT_ERROR
     except KeyboardInterrupt:
         return EXIT_ERROR
@@ -222,6 +291,10 @@ def dispatch(config: Config, args: argparse.Namespace) -> int:
     handlers = {
         "init": _init,
         "doctor": _doctor,
+        "start": _start,
+        "explain": _explain,
+        "wizard": wizard_cli.run,
+        "key": _key,
         "naver": _naver,
         "profile": _profile,
         "brief": _brief,
@@ -288,6 +361,95 @@ def _doctor(config: Config, args: argparse.Namespace) -> int:
     else:
         print(doctor_module.render(data))
     return EXIT_ERROR if doctor_module.blockers(data) else EXIT_OK
+
+
+def _explain(config: Config, args: argparse.Namespace) -> int:
+    """The error dictionary. Every code the project raises has a row here."""
+    lang = getattr(args, "lang", None) or config.ui_lang
+    if getattr(args, "as_list", False):
+        for code in explain_module.codes(lang):
+            print(code)
+        return EXIT_OK
+    code = str(args.code).strip().upper()
+    if getattr(args, "as_json", False):
+        print(json.dumps(explain_module.entry(code, lang), ensure_ascii=False,
+                         indent=2, sort_keys=True))
+    else:
+        print(explain_module.render(code, lang))
+    return EXIT_OK
+
+
+def _start(config: Config, args: argparse.Namespace) -> int:
+    """Launcher entry: host check, agent choice, agent open on the wizard."""
+    translate = i18n.Translator(config.ui_lang)
+    found, table = start_module.doctor_blockers(config)
+    if found:
+        print(table)
+        print(translate("doctor.blocking", items=", ".join(found)))
+        print(explain_module.line("DOCTOR_BLOCKED", config.ui_lang))
+        return EXIT_ERROR
+    print(translate("doctor.clear"))
+    ask = _prompt_agent if sys.stdin.isatty() else None
+    target = start_module.plan(config, requested=getattr(args, "agent", None), ask=ask)
+    if target.recorded:
+        print(translate("start.agent.saved", agent=target.agent))
+    print(translate("start.agent.detected", agent=target.agent,
+                    directory=str(target.directory)))
+    if getattr(args, "no_launch", False):
+        print(translate("start.no_launch"))
+        print(f"  cd {target.directory} && {target.command}")
+        return EXIT_OK
+    print(translate("start.launch", command=target.command))
+    return EXIT_OK if start_module.launch(target) == 0 else EXIT_ERROR
+
+
+def _prompt_agent(question: str) -> str:
+    try:
+        return input(f"{question} ")
+    except EOFError:
+        return ""
+
+
+def _key(config: Config, args: argparse.Namespace) -> int:
+    """credentials.env writes and reads. A value never reaches stdout or argv."""
+    home = config.home_path
+    profile = getattr(args, "profile", None) or config.default_profile
+    path = credentials_path(home, profile)
+    if args.key_command == "set":
+        name = str(args.name).strip().upper()
+        if getattr(args, "stdin", False):
+            value = sys.stdin.readline().strip()
+        else:
+            print(i18n.get("key.set.prompt", config.ui_lang, name=name))
+            try:
+                value = getpass.getpass("").strip()
+            except EOFError:
+                value = ""
+        if not value:
+            raise FactoryError("KEY_VALUE_EMPTY", name[:40])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        warning = env_set(path, name, value)
+        if warning:
+            print(warning, file=sys.stderr)
+        print(i18n.get("key.saved", config.ui_lang, name=name, profile=profile))
+        return EXIT_OK
+    if args.key_command == "list":
+        present = sorted(load_env(path))
+        expected: list[str] = []
+        for platform in PLATFORMS:
+            expected.extend(required_env(platform))
+        expected.extend(["ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "SUPABASE_URL",
+                         "SUPABASE_SERVICE_ROLE_KEY"])
+        rows = {name: name in present for name in sorted(set(expected) | set(present))}
+        if getattr(args, "as_json", False):
+            print(json.dumps({"profile": profile, "keys": rows}, ensure_ascii=False,
+                             indent=2, sort_keys=True))
+            return EXIT_OK
+        print(i18n.get("key.list.header", config.ui_lang, profile=profile))
+        for name, is_set in rows.items():
+            print(f"  {name}  {'set' if is_set else 'missing'}")
+        return EXIT_OK
+    raise FactoryError("KEY_COMMAND_UNKNOWN", str(args.key_command)[:32])
 
 
 def _naver(config: Config, args: argparse.Namespace) -> int:
@@ -358,7 +520,69 @@ def _profile(config: Config, args: argparse.Namespace) -> int:
             print(permission, file=sys.stderr)
         print(str(target))
         return EXIT_OK
+    if args.profile_command == "template":
+        # The tone answer from setup, turned into the three model-facing documents.
+        # Hand editing them afterwards is fine; this is the starting point, not a lock.
+        directory = home / "profiles" / args.profile
+        if not directory.is_dir():
+            raise FactoryError("PROFILE_MISSING", str(args.profile)[:40])
+        written: list[str] = []
+        for filename, body in wizard_templates.files(args.brand, args.intro,
+                                                     args.tone).items():
+            (directory / filename).write_text(body, encoding="utf-8")
+            written.append(filename)
+        print(i18n.get("profile.template.written", config.ui_lang,
+                       profile=args.profile, tone=args.tone,
+                       files=", ".join(sorted(written))))
+        return EXIT_OK
+    if args.profile_command == "platform":
+        return _profile_platform(config, args)
     raise FactoryError("PROFILE_COMMAND_UNKNOWN")
+
+
+def _profile_platform(config: Config, args: argparse.Namespace) -> int:
+    """The owner of platforms.json. Slots live here, not in a hand edited file."""
+    directory = config.home_path / "profiles" / args.profile
+    if not directory.is_dir():
+        raise FactoryError("PROFILE_MISSING", str(args.profile)[:40])
+    path = directory / "platforms.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except OSError:
+        raw = {}
+    except ValueError:
+        raise FactoryError("PROFILE_INVALID", "platforms.json") from None
+    if not isinstance(raw, dict):
+        raise FactoryError("PROFILE_INVALID", "platforms.json")
+    blocks = {name: value for name, value in raw.items() if isinstance(value, dict)}
+    current = blocks.get(args.platform) or {}
+    try:
+        settings = PlatformConfig(**current)
+    except ValueError:
+        raise FactoryError("PROFILE_INVALID", args.platform[:32]) from None
+    changes = settings.model_dump(mode="json")
+    if args.enable:
+        changes["enabled"] = True
+    if args.disable:
+        changes["enabled"] = False
+    if args.slot:
+        changes["slots"] = list(dict.fromkeys(args.slot))
+    for key in ("daily_cap", "blog_id", "connector_id", "account_id"):
+        value = getattr(args, key, None)
+        if value is not None:
+            changes[key] = value
+    try:
+        updated = PlatformConfig(**changes)
+    except ValueError:
+        raise FactoryError("SLOT_INVALID", ",".join(args.slot)[:60]) from None
+    blocks[args.platform] = updated.model_dump(mode="json")
+    path.write_text(json.dumps(blocks, ensure_ascii=False, indent=2, sort_keys=True)
+                    + "\n", encoding="utf-8")
+    print(i18n.get("profile.platform.written", config.ui_lang, profile=args.profile,
+                   platform=args.platform,
+                   enabled="on" if updated.enabled else "off",
+                   slots=",".join(updated.slots) or "-"))
+    return EXIT_OK
 
 
 def _read_answers(source: str | None) -> dict[str, object]:
@@ -380,6 +604,20 @@ def _brief(config: Config, args: argparse.Namespace) -> int:
     if args.brief_command == "show":
         brief = load_brief(home, args.brief)
         print(brief.model_dump_json(indent=2))
+        return EXIT_OK
+    if args.brief_command == "revise":
+        # One correction, appended. The brief is kept on purpose: starting a new one
+        # after a "change this line" loses the answers and the revision count.
+        brief = load_brief(home, args.brief)
+        note = str(args.note).strip()
+        if not note:
+            raise FactoryError("PROMPT_REQUIRED", args.brief[:32])
+        base = brief.prompt_final or brief.prompt_draft
+        brief.prompt_final = f"{base}\n\nCorrection from the user: {note}".strip()
+        brief.prompt_revisions += 1
+        save_brief(home, brief)
+        print(i18n.get("brief.revised", config.ui_lang, brief=brief.id,
+                       revision=brief.prompt_revisions))
         return EXIT_OK
     if args.brief_command == "new":
         payload = _read_answers(args.answers)
@@ -591,15 +829,23 @@ def _gate(config: Config, args: argparse.Namespace) -> int:
         config, brief, getattr(args, "media", None))
     boxes = _parse_boxes(getattr(args, "box", []) or []) or drawn
     failed = False
+    rows: list[dict[str, str]] = []
+    as_json = bool(getattr(args, "as_json", False))
     for label, body in bodies:
         results = _gate_results(config, body=body, profile=profile, kind=kind,
                                 format_name=format_name, selected=args.gate,
                                 boxes=boxes, exclude_id=getattr(args, "item", None),
                                 media_path=media_path, script_text=script_text)
-        print(f"[{label}]")
-        print(terminal.gate_table(results, lang=config.ui_lang))
+        if as_json:
+            rows.extend({"output": label, "gate": name, "status": status,
+                         "detail": detail} for name, status, detail in results)
+        else:
+            print(f"[{label}]")
+            print(terminal.gate_table(results, lang=config.ui_lang))
         failed = failed or any(status == terminal.FAIL
                                for _name, status, _detail in results)
+    if as_json:
+        print(json.dumps(rows, ensure_ascii=False, indent=2, sort_keys=True))
     return EXIT_ERROR if failed else EXIT_OK
 
 
@@ -760,6 +1006,8 @@ def _publish(config: Config, args: argparse.Namespace) -> int:
         result = publisher.publish(item, dry_run=True)
         print(i18n.get("publish.dry_run.header", config.ui_lang))
         print(result.render())
+        if not result.ok:
+            print(explain_module.line(result.code, config.ui_lang))
         return EXIT_OK if result.ok else EXIT_ERROR
     if not item.approved:
         raise FactoryError("NOT_APPROVED", item.id)
@@ -771,6 +1019,9 @@ def _publish(config: Config, args: argparse.Namespace) -> int:
     if result.ok:
         store.mark_published(item.id, result.published_id)
     else:
+        # The failure code with the one thing to do about it, from the same dictionary
+        # the wizard reads, so a publish failure is never just five capital letters.
+        print(explain_module.line(result.code, config.ui_lang))
         mode = failure_mode(result.code)
         if mode == "retry":
             store.delivery_failed(item.id, result.code)
